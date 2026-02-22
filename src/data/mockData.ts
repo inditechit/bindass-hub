@@ -12,6 +12,13 @@ export interface Agent {
   joinedAt: string;
 }
 
+export interface UserCommissionSplit {
+  clientRate: number; // what client pays per minute
+  adminShare: number;
+  agentShare: number; // 0 for independent users
+  userShare: number;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -26,6 +33,7 @@ export interface User {
   status: "active" | "pending" | "rejected" | "inactive";
   joinedAt: string;
   audioIntroUrl?: string;
+  commission: UserCommissionSplit;
 }
 
 export interface Client {
@@ -65,17 +73,17 @@ export interface Recharge {
   timestamp: string;
 }
 
-export interface CommissionSplit {
-  clientRate: number; // per minute
-  adminShare: number;
-  agentShare: number;
-  userShare: number;
-}
-
-export const defaultSplit: CommissionSplit = {
+export const defaultAgentSplit: UserCommissionSplit = {
   clientRate: 50,
   adminShare: 10,
   agentShare: 5,
+  userShare: 35,
+};
+
+export const defaultIndependentSplit: UserCommissionSplit = {
+  clientRate: 50,
+  adminShare: 15,
+  agentShare: 0,
   userShare: 35,
 };
 
@@ -87,12 +95,12 @@ export const agents: Agent[] = [
 ];
 
 export const users: User[] = [
-  { id: "u1", name: "Ananya Singh", avatar: "AS", phone: "+91 99887 76655", type: "agent", agentId: "a1", agentName: "Rahul Sharma", totalMinutes: 2450, totalEarned: 85750, rating: 4.8, status: "active", joinedAt: "2024-11-20" },
-  { id: "u2", name: "Kavya Reddy", avatar: "KR", phone: "+91 88776 65544", type: "independent", totalMinutes: 1890, totalEarned: 66150, rating: 4.5, status: "active", joinedAt: "2024-12-10", audioIntroUrl: "/audio-sample.mp3" },
-  { id: "u3", name: "Meera Joshi", avatar: "MJ", phone: "+91 77665 54433", type: "agent", agentId: "a2", agentName: "Priya Verma", totalMinutes: 3200, totalEarned: 112000, rating: 4.9, status: "active", joinedAt: "2024-11-05" },
-  { id: "u4", name: "Ritu Nair", avatar: "RN", phone: "+91 66554 43322", type: "independent", totalMinutes: 560, totalEarned: 19600, rating: 4.2, status: "pending", joinedAt: "2025-01-15", audioIntroUrl: "/audio-sample.mp3" },
-  { id: "u5", name: "Pooja Mehta", avatar: "PM", phone: "+91 55443 32211", type: "agent", agentId: "a3", agentName: "Amit Patel", totalMinutes: 1200, totalEarned: 42000, rating: 4.6, status: "active", joinedAt: "2025-01-02" },
-  { id: "u6", name: "Deepa Rao", avatar: "DR", phone: "+91 44332 21100", type: "independent", totalMinutes: 340, totalEarned: 11900, rating: 3.9, status: "pending", joinedAt: "2025-02-01", audioIntroUrl: "/audio-sample.mp3" },
+  { id: "u1", name: "Ananya Singh", avatar: "AS", phone: "+91 99887 76655", type: "agent", agentId: "a1", agentName: "Rahul Sharma", totalMinutes: 2450, totalEarned: 85750, rating: 4.8, status: "active", joinedAt: "2024-11-20", commission: { clientRate: 50, adminShare: 10, agentShare: 5, userShare: 35 } },
+  { id: "u2", name: "Kavya Reddy", avatar: "KR", phone: "+91 88776 65544", type: "independent", totalMinutes: 1890, totalEarned: 66150, rating: 4.5, status: "active", joinedAt: "2024-12-10", audioIntroUrl: "/audio-sample.mp3", commission: { clientRate: 50, adminShare: 15, agentShare: 0, userShare: 35 } },
+  { id: "u3", name: "Meera Joshi", avatar: "MJ", phone: "+91 77665 54433", type: "agent", agentId: "a2", agentName: "Priya Verma", totalMinutes: 3200, totalEarned: 112000, rating: 4.9, status: "active", joinedAt: "2024-11-05", commission: { clientRate: 60, adminShare: 12, agentShare: 8, userShare: 40 } },
+  { id: "u4", name: "Ritu Nair", avatar: "RN", phone: "+91 66554 43322", type: "independent", totalMinutes: 560, totalEarned: 19600, rating: 4.2, status: "pending", joinedAt: "2025-01-15", audioIntroUrl: "/audio-sample.mp3", commission: { clientRate: 40, adminShare: 12, agentShare: 0, userShare: 28 } },
+  { id: "u5", name: "Pooja Mehta", avatar: "PM", phone: "+91 55443 32211", type: "agent", agentId: "a3", agentName: "Amit Patel", totalMinutes: 1200, totalEarned: 42000, rating: 4.6, status: "active", joinedAt: "2025-01-02", commission: { clientRate: 50, adminShare: 10, agentShare: 7, userShare: 33 } },
+  { id: "u6", name: "Deepa Rao", avatar: "DR", phone: "+91 44332 21100", type: "independent", totalMinutes: 340, totalEarned: 11900, rating: 3.9, status: "pending", joinedAt: "2025-02-01", audioIntroUrl: "/audio-sample.mp3", commission: { clientRate: 45, adminShare: 13, agentShare: 0, userShare: 32 } },
 ];
 
 export const clients: Client[] = [
