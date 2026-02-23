@@ -1,108 +1,203 @@
-import { IndianRupee, Users, UserCog, Crown, MessageSquare, TrendingUp } from "lucide-react";
+import { useEffect, useState } from "react";
+import { IndianRupee, Users, UserCog, Crown, MessageSquare, TrendingUp, History } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import StatCard from "@/components/shared/StatCard";
 import StatusBadge from "@/components/shared/StatusBadge";
-import { chatLogs, agents, users, clients, recharges } from "@/data/mockData";
 
-const totalRevenue = chatLogs.reduce((s, l) => s + l.clientSpent, 0);
-const totalUserPayouts = chatLogs.reduce((s, l) => s + l.userEarned, 0);
-const totalAgentPayouts = chatLogs.reduce((s, l) => s + l.agentEarned, 0);
-const adminRevenue = chatLogs.reduce((s, l) => s + l.adminEarned, 0);
+// --- API Types ---
+interface ChatSession {
+  id: number;
+  user_id: string;
+  astrologer_id: number;
+  status: string;
+  created_at: string;
+}
 
-const Dashboard = () => (
-  <DashboardLayout>
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-display font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Welcome back, Super Admin</p>
-      </div>
+interface Transaction {
+  id: number;
+  user_id: number;
+  astrologer_id: number;
+  session_id: number | null;
+  transaction_type: string;
+  amount: number;
+  status: any;
+  transaction_date: string;
+  reason: string;
+}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Revenue" value={`₹${totalRevenue.toLocaleString()}`} subtitle="All time" icon={IndianRupee} glow="gold" />
-        <StatCard title="Admin Earnings" value={`₹${adminRevenue.toLocaleString()}`} subtitle="Platform share" icon={TrendingUp} glow="purple" />
-        <StatCard title="Agent Payouts" value={`₹${totalAgentPayouts.toLocaleString()}`} subtitle="Pending" icon={UserCog} glow="green" />
-        <StatCard title="User Payouts" value={`₹${totalUserPayouts.toLocaleString()}`} subtitle="Pending" icon={Users} glow="purple" />
-      </div>
+const Dashboard = () => {
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard title="Active Agents" value={agents.filter(a => a.status === "active").length.toString()} icon={UserCog} glow="purple" />
-        <StatCard title="Active Users" value={users.filter(u => u.status === "active").length.toString()} subtitle={`${users.filter(u => u.status === "pending").length} pending`} icon={Users} glow="green" />
-        <StatCard title="Total Clients" value={clients.length.toString()} icon={Crown} glow="gold" />
-      </div>
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        // Fetch both APIs via your proxy to avoid CORS
+        const [sessionRes, transRes] = await Promise.all([
+          fetch("https://astroapi.inditechit.com/api/get_chat_session"),
+          fetch("https://astroapi.inditechit.com/api/get_transaction")
+        ]);
 
-      {/* Recent Activity */}
-      <div className="glass-card p-5">
-        <h2 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
-          <MessageSquare className="w-4 h-4 text-primary" />
-          Recent Sessions
-        </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-muted-foreground">
-                <th className="text-left py-3 px-2 font-medium">Type</th>
-                <th className="text-left py-3 px-2 font-medium">Client</th>
-                <th className="text-left py-3 px-2 font-medium">User</th>
-                <th className="text-left py-3 px-2 font-medium">Duration</th>
-                <th className="text-right py-3 px-2 font-medium">Client Spent</th>
-                <th className="text-right py-3 px-2 font-medium">User Earned</th>
-                <th className="text-left py-3 px-2 font-medium">Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {chatLogs.slice(0, 5).map(log => (
-                <tr key={log.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                  <td className="py-3 px-2">
-                    <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${log.type === "chat" ? "bg-info/15 text-info" : "bg-primary/15 text-primary"}`}>
-                      {log.type}
-                    </span>
-                  </td>
-                  <td className="py-3 px-2 text-foreground">{log.clientName}</td>
-                  <td className="py-3 px-2 text-foreground">{log.userName}</td>
-                  <td className="py-3 px-2 text-muted-foreground">{log.duration} min</td>
-                  <td className="py-3 px-2 text-right text-accent font-medium">₹{log.clientSpent}</td>
-                  <td className="py-3 px-2 text-right text-success font-medium">₹{log.userEarned}</td>
-                  <td className="py-3 px-2 text-muted-foreground text-xs">{log.timestamp}</td>
+        const sessionJson = await sessionRes.json();
+        const transJson = await transRes.json();
+
+        if (sessionJson.status === 200 && transJson.status === 200) {
+          setSessions(sessionJson.data);
+          setTransactions(transJson.data);
+        }
+      } catch (error) {
+        console.error("Dashboard Fetch Error:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  // --- Financial Calculations ---
+  // Total Revenue: All successful debits from users
+  const totalRevenue = transactions
+    .filter(t => t.transaction_type === 'debit' && t.status === 'success')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  // Gifts: Sum of gift_debit transactions
+  const totalGifts = transactions
+    .filter(t => t.transaction_type === 'gift_debit')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  // Recent merged activity: Link transactions to sessions
+  const mergedActivity = sessions.slice(0, 10).map(s => {
+    const sessionData = s.chatSession;
+    const matchingTrans = transactions.find(t => t.session_id === sessionData.id);
+    return {
+      id: sessionData.id,
+      userId: sessionData.user_id,
+      astroId: sessionData.astrologer_id,
+      status: sessionData.status,
+      time: sessionData.created_at,
+      amount: matchingTrans?.amount || 0,
+      type: matchingTrans?.transaction_type || 'N/A'
+    };
+  });
+
+  if (loading) return <div className="p-10 text-center animate-pulse">Loading Analytics...</div>;
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-display font-bold">Live Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">Real-time session and transaction monitoring</p>
+        </div>
+
+        {/* --- Dynamic Stats Section --- */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard 
+            title="Total Revenue" 
+            value={`₹${totalRevenue.toLocaleString()}`} 
+            subtitle="Successful Debits" 
+            icon={IndianRupee} 
+            glow="gold" 
+          />
+          <StatCard 
+            title="Gift Revenue" 
+            value={`₹${totalGifts.toLocaleString()}`} 
+            subtitle="Sent to Performers" 
+            icon={TrendingUp} 
+            glow="purple" 
+          />
+          <StatCard 
+            title="Active Sessions" 
+            value={sessions.filter(s => s.chatSession.status === "In Progress").length.toString()} 
+            subtitle="Currently Live" 
+            icon={MessageSquare} 
+            glow="green" 
+          />
+          <StatCard 
+            title="Success Rate" 
+            value={`${((transactions.filter(t => t.status === 'success').length / transactions.length) * 100).toFixed(1)}%`} 
+            subtitle="Txn Success" 
+            icon={Users} 
+            glow="purple" 
+          />
+        </div>
+
+        {/* --- Recent Activity Table --- */}
+        <div className="glass-card p-5">
+          <h2 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
+            <History className="w-4 h-4 text-primary" />
+            Recent Chat Sessions & Payments
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="text-left py-3 px-2 font-medium">Session ID</th>
+                  <th className="text-left py-3 px-2 font-medium">User ID</th>
+                  <th className="text-left py-3 px-2 font-medium">Performer ID</th>
+                  <th className="text-left py-3 px-2 font-medium">Status</th>
+                  <th className="text-right py-3 px-2 font-medium">Session Cost</th>
+                  <th className="text-left py-3 px-2 font-medium">Time</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {mergedActivity.map(act => (
+                  <tr key={act.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                    <td className="py-3 px-2 font-mono text-xs">#{act.id}</td>
+                    <td className="py-3 px-2 text-foreground">Client {act.userId}</td>
+                    <td className="py-3 px-2 text-foreground">User {act.astroId}</td>
+                    <td className="py-3 px-2">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${act.status === 'In Progress' ? 'bg-green-500/20 text-green-500' : 'bg-muted text-muted-foreground'}`}>
+                            {act.status}
+                        </span>
+                    </td>
+                    <td className="py-3 px-2 text-right text-accent font-bold">₹{act.amount}</td>
+                    <td className="py-3 px-2 text-muted-foreground text-xs">
+                        {new Date(act.time).toLocaleTimeString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* --- Recent Transactions Feed --- */}
+        <div className="glass-card p-5">
+          <h2 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
+            <IndianRupee className="w-4 h-4 text-accent" />
+            Live Transaction Feed
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="text-left py-3 px-2 font-medium">Reason</th>
+                  <th className="text-right py-3 px-2 font-medium">Amount</th>
+                  <th className="text-left py-3 px-2 font-medium">Type</th>
+                  <th className="text-left py-3 px-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.slice(0, 8).map(t => (
+                  <tr key={t.id} className="border-b border-border/50 hover:bg-muted/30">
+                    <td className="py-3 px-2 text-foreground font-medium">{t.reason}</td>
+                    <td className={`py-3 px-2 text-right font-bold ${t.transaction_type === 'debit' ? 'text-red-400' : 'text-green-400'}`}>
+                      {t.transaction_type === 'debit' ? '-' : '+'}₹{t.amount}
+                    </td>
+                    <td className="py-3 px-2 text-muted-foreground capitalize text-xs">{t.transaction_type.replace('_', ' ')}</td>
+                    <td className="py-3 px-2"><StatusBadge status={t.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-
-      {/* Recent Recharges */}
-      <div className="glass-card p-5">
-        <h2 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
-          <IndianRupee className="w-4 h-4 text-accent" />
-          Recent Recharges
-        </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-muted-foreground">
-                <th className="text-left py-3 px-2 font-medium">Client</th>
-                <th className="text-right py-3 px-2 font-medium">Amount</th>
-                <th className="text-left py-3 px-2 font-medium">Method</th>
-                <th className="text-left py-3 px-2 font-medium">Status</th>
-                <th className="text-left py-3 px-2 font-medium">Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recharges.slice(0, 5).map(r => (
-                <tr key={r.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                  <td className="py-3 px-2 text-foreground">{r.clientName}</td>
-                  <td className="py-3 px-2 text-right text-accent font-medium">₹{r.amount}</td>
-                  <td className="py-3 px-2 text-muted-foreground">{r.method}</td>
-                  <td className="py-3 px-2"><StatusBadge status={r.status} /></td>
-                  <td className="py-3 px-2 text-muted-foreground text-xs">{r.timestamp}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </DashboardLayout>
-);
+    </DashboardLayout>
+  );
+};
 
 export default Dashboard;
