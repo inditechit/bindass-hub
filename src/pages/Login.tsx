@@ -14,7 +14,6 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      // Replace with your actual endpoint: https://astroapi.inditechit.com/api/login
       const response = await fetch("https://astroapi.inditechit.com/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
