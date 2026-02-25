@@ -20,7 +20,7 @@ const navItems = [
   { label: "Chat & Call Logs", icon: MessageSquare, path: "/logs" },
   { label: "Audio Verification", icon: Mic, path: "/audio-verification" },
   { label: "Recharge Tracking", icon: CreditCard, path: "/recharges" },
-  { label: "Commission Engine", icon: TrendingUp, path: "/commission" },
+  // { label: "Commission Engine", icon: TrendingUp, path: "/commission" },
   { label: "Settings", icon: Settings, path: "/settings" },
 ];
 
