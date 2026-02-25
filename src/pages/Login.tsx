@@ -50,8 +50,8 @@ const Login = () => {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 shadow-lg shadow-indigo-500/20 mb-4">
             <Sparkles className="text-white" size={32} />
           </div>
-          <h1 className="text-3xl font-display font-bold text-white">Astro Admin</h1>
-          <p className="text-muted-foreground mt-2">Sign in to manage your celestial platform</p>
+          <h1 className="text-3xl font-display font-bold text-white">Bindass Chatting</h1>
+          <p className="text-muted-foreground mt-2">Sign in to manage your platform</p>
         </div>
 
         <div className="glass-card p-8 border border-white/10 shadow-2xl">
@@ -104,7 +104,7 @@ const Login = () => {
         </div>
         
         <p className="text-center text-sm text-muted-foreground mt-8">
-          © 2026 Astro Systems • Built with ✨
+          © 2026 Bindass chatting. All rights reserved.
         </p>
       </div>
     </div>
