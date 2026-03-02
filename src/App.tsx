@@ -20,6 +20,7 @@ import Login from "./pages/Login";
 
 // Auth Guard
 import { ProtectedRoute } from "./hooks/ProtectedRoute";
+import SupportTickets from "./pages/SuportTicket";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ const App = () => (
             <Route path="/recharges" element={<Recharges />} />
             <Route path="/commission" element={<CommissionEngine />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/support" element={<SupportTickets />} />
           </Route>
 
           {/* Fallback Route: 404 Page */}

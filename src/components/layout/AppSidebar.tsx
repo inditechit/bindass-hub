@@ -9,7 +9,8 @@ import {
   Settings,
   TrendingUp,
   Crown,
-  LogOut, // Added LogOut icon
+  LogOut,
+  HelpCircle, // Added LogOut icon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,7 @@ const navItems = [
   { label: "Chat & Call Logs", icon: MessageSquare, path: "/logs" },
   { label: "Audio Verification", icon: Mic, path: "/audio-verification" },
   { label: "Recharge Tracking", icon: CreditCard, path: "/recharges" },
+  { label: "Support Tickets", icon: HelpCircle, path: "/support" },
   { label: "Settings", icon: Settings, path: "/settings" },
 ];
 
