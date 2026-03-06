@@ -222,7 +222,7 @@ const toggleAgentStatus = async (agent: UserAPIResponse) => {
                    <img src={selectedAgent.img_url} className="w-20 h-20 rounded-2xl object-cover border-4 border-card shadow-lg" alt="" />
                    <div className="mb-2">
                      <h2 className="text-2xl font-bold">{selectedAgent.name}</h2>
-                     <p className="text-sm text-primary font-medium uppercase tracking-tighter">ID: #{selectedAgent.id} • {selectedAgent.type}</p>
+                     <p className="text-sm text-primary font-medium uppercase tracking-tighter">Code: #{selectedAgent.id} • {selectedAgent.type}</p>
                    </div>
                 </div>
              </div>
