@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Users as UsersIcon, Star, IndianRupee, Eye, Trash2, X, CheckCircle, Shield, CreditCard, Save } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import StatCard from "@/components/shared/StatCard";
@@ -23,6 +23,7 @@ interface Astrologer {
   experience: string;
   long_bio: string;
   verified: string;
+  agent_id?: number | string; // Added to handle agent filtering
   bank_account_number?: string;
   ifscCode?: string;
   panCardNo?: string;
@@ -35,6 +36,20 @@ const PerformersPage = () => {
   const [activeTab, setActiveTab] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Retrieve user role and ID from localStorage
+  const { userType, userId } = useMemo(() => {
+    try {
+      const storedUser = localStorage.getItem("astro_user");
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        return { userType: parsed?.type || "admin", userId: parsed?.id };
+      }
+    } catch (error) {
+      console.error("Failed to parse astro_user from localStorage", error);
+    }
+    return { userType: "admin", userId: null };
+  }, []);
+
   useEffect(() => {
     fetchPerformers();
   }, []);
@@ -43,13 +58,24 @@ const PerformersPage = () => {
     try {
       const response = await fetch("https://astroapi.inditechit.com/api/get_astrologer");
       const json = await response.json();
-      if (json.status === 200) setPerformers(json.data);
+      if (json.status === 200) {
+        setPerformers(json.data);
+      }
     } catch (error) {
       console.error("Fetch error:", error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Filter performers based on user type
+  const filteredPerformers = useMemo(() => {
+    if (userType === "agent" && userId) {
+      // Using == to safely check if API returns string while storage has number, or vice versa
+      return performers.filter((p) => p.agent_id == userId);
+    }
+    return performers; // Admins see everyone
+  }, [performers, userType, userId]);
 
   const handleUpdate = async () => {
     if (!editAstro) return;
@@ -85,10 +111,11 @@ const PerformersPage = () => {
           <p className="text-sm text-muted-foreground mt-1">Manage profiles, pricing, and approvals</p>
         </div>
 
+        {/* Dynamic Stats Section using filtered data */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <StatCard title="Total Performers" value={performers.length.toString()} icon={UsersIcon} glow="purple" />
-          <StatCard title="Pending Approvals" value={performers.filter(p => p.status !== "active").length.toString()} icon={Shield} glow="gold" />
-          <StatCard title="Total Payouts" value={`₹${performers.reduce((s, p) => s + p.wallet_balance, 0).toLocaleString()}`} icon={IndianRupee} glow="green" />
+          <StatCard title="Total Performers" value={filteredPerformers.length.toString()} icon={UsersIcon} glow="purple" />
+          <StatCard title="Pending Approvals" value={filteredPerformers.filter(p => p.status !== "active").length.toString()} icon={Shield} glow="gold" />
+          <StatCard title="Total Payouts" value={`₹${filteredPerformers.reduce((s, p) => s + p.wallet_balance, 0).toLocaleString()}`} icon={IndianRupee} glow="green" />
         </div>
 
         <div className="glass-card p-5">
@@ -104,7 +131,7 @@ const PerformersPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {performers.map((p) => (
+                {filteredPerformers.map((p) => (
                   <tr key={p.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                     <td className="py-3 px-2 flex items-center gap-3">
                       <img src={p.img_url} className="w-9 h-9 rounded-full object-cover" alt="" />
@@ -131,6 +158,13 @@ const PerformersPage = () => {
                     </td>
                   </tr>
                 ))}
+                {filteredPerformers.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-6 text-center text-muted-foreground">
+                      No performers found.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

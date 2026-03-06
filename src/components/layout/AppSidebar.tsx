@@ -57,7 +57,7 @@ const AppSidebar = () => {
   // Filter nav items based on role
   const filteredNavItems = useMemo(() => {
     if (userType === "agent") {
-      const agentAllowedPaths = ["/", "/support", "/recharges", "/users", "/logs"];
+      const agentAllowedPaths = ["/",  "/users"];
       return navItems.filter((item) => agentAllowedPaths.includes(item.path));
     }
     return navItems; // Admins and others see everything
