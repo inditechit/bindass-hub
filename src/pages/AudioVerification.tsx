@@ -1,15 +1,124 @@
-import { Mic, CheckCircle, XCircle } from "lucide-react";
+import { Mic, CheckCircle, XCircle, Save, X } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { users } from "@/data/mockData";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+interface User {
+  id: string;
+  name: string;
+  phone: string;
+  avatar: string;
+  status: string;
+  type: string;
+}
 
 const AudioVerification = () => {
   const independentUsers = users.filter(u => u.type === "independent");
-  const [statuses, setStatuses] = useState<Record<string, string>>({});
 
-  const handleAction = (userId: string, action: "active" | "rejected") => {
-    setStatuses(prev => ({ ...prev, [userId]: action }));
+  const [statuses, setStatuses] = useState<Record<string, string>>({});
+  const [popupUser, setPopupUser] = useState<User | null>(null);
+  const [activeTab, setActiveTab] = useState(1);
+  const [formData, setFormData] = useState({
+    displayname: "",
+    phone: "",
+    status: "active",
+    chat_price_m: "0",
+    call_price_m: "0",
+    chat_commission: "0",
+    call_commission: "0",
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [existingAstros, setExistingAstros] = useState<any[]>([]);
+
+  // Fetch existing astrologers from server
+  useEffect(() => {
+    fetchExistingAstros();
+  }, []);
+
+  const fetchExistingAstros = async () => {
+    try {
+      const res = await fetch("https://astroapi.inditechit.com/api/get_astrologer");
+      const json = await res.json();
+      if (json.status === 200) {
+        setExistingAstros(json.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch existing astrologers", err);
+    }
+  };
+
+  // Open popup form
+  const openForm = (user: User) => {
+    setPopupUser(user);
+    setFormData({
+      displayname: user.name,
+      phone: user.phone,
+      status: "active",
+      chat_price_m: "0",
+      call_price_m: "0",
+      chat_commission: "0",
+      call_commission: "0",
+    });
+    setActiveTab(1);
+  };
+
+  // Handle delete
+  const handleDelete = (userId: string) => {
+    setStatuses(prev => ({ ...prev, [userId]: "deleted" }));
+    setPopupUser(null);
+  };
+
+  // Handle save / accept
+  const handleSave = async () => {
+    if (!popupUser) return;
+    setIsSaving(true);
+
+    const payload = {
+      displayname: formData.displayname,
+      astrologer_name: formData.displayname,
+      phone: formData.phone,
+      exp: 0,
+      skill: "1",
+      spirituality: "1",
+      status: formData.status,
+      chat_price_m: formData.chat_price_m,
+      call_price_m: formData.call_price_m,
+      chat_commission: formData.chat_commission,
+      call_commission: formData.call_commission,
+      email: `user${Date.now()}@astro.com`,
+      password: "DefaultPassword123!",
+      remedies: "newhost",
+    };
+
+    try {
+      const res = await fetch("https://astroapi.inditechit.com/api/create_astrologer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await res.json();
+
+      if (res.ok && (result.status === 200 || result.status === 201)) {
+        setStatuses(prev => ({ ...prev, [popupUser.id]: "accepted" }));
+        setPopupUser(null);
+        fetchExistingAstros(); // Refresh existing astrologers
+      } else {
+        alert(result.message || "Failed to add user");
+      }
+    } catch (err) {
+      alert("Error adding user");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Get current status (local or server)
+  const getUserStatus = (user: User) => {
+    if (statuses[user.id]) return statuses[user.id]; // local accept/delete
+    const exists = existingAstros.find(a => a.phone === user.phone); // match by phone
+    if (exists) return "accepted";
+    return user.status; // default
   };
 
   return (
@@ -22,7 +131,7 @@ const AudioVerification = () => {
 
         <div className="grid gap-4">
           {independentUsers.map(u => {
-            const currentStatus = statuses[u.id] || u.status;
+            const currentStatus = getUserStatus(u);
             return (
               <div key={u.id} className="glass-card-hover p-5">
                 <div className="flex items-center justify-between">
@@ -40,7 +149,6 @@ const AudioVerification = () => {
                   </div>
 
                   <div className="flex items-center gap-4">
-                    {/* Audio Player */}
                     <div className="glass-card p-2 flex items-center gap-2">
                       <Mic className="w-4 h-4 text-primary" />
                       <audio controls className="h-8 w-48" style={{ filter: "invert(1) hue-rotate(180deg)" }}>
@@ -48,21 +156,25 @@ const AudioVerification = () => {
                       </audio>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleAction(u.id, "active")}
-                        className={`p-2 rounded-lg transition-colors ${currentStatus === "active" ? "bg-success/20 text-success" : "hover:bg-success/10 text-muted-foreground hover:text-success"}`}
-                      >
-                        <CheckCircle className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleAction(u.id, "rejected")}
-                        className={`p-2 rounded-lg transition-colors ${currentStatus === "rejected" ? "bg-destructive/20 text-destructive" : "hover:bg-destructive/10 text-muted-foreground hover:text-destructive"}`}
-                      >
-                        <XCircle className="w-5 h-5" />
-                      </button>
-                    </div>
+                    {currentStatus !== "accepted" && currentStatus !== "deleted" && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openForm(u)}
+                          className="p-2 rounded-lg bg-success/10 text-success hover:bg-success/20"
+                        >
+                          <CheckCircle className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(u.id)}
+                          className="p-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20"
+                        >
+                          <XCircle className="w-5 h-5" />
+                        </button>
+                      </div>
+                    )}
+
+                    {currentStatus === "accepted" && <span className="text-success font-bold">Accepted</span>}
+                    {currentStatus === "deleted" && <span className="text-destructive font-bold">Deleted</span>}
                   </div>
                 </div>
               </div>
@@ -70,6 +182,81 @@ const AudioVerification = () => {
           })}
         </div>
       </div>
+
+      {/* Popup Form */}
+      {popupUser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-card border border-border w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+            <div className="p-6 border-b border-border flex justify-between items-center bg-muted/20">
+              <h2 className="text-xl font-bold">Approve {popupUser.name}</h2>
+              <button onClick={() => setPopupUser(null)} className="p-2 hover:bg-muted rounded-full"><X size={20} /></button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex bg-muted/10 p-1 m-4 rounded-xl border border-border">
+              <button onClick={() => setActiveTab(1)} className={`flex-1 py-2 text-xs font-bold rounded-lg ${activeTab === 1 ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground'}`}>Profile & Approval</button>
+              <button onClick={() => setActiveTab(2)} className={`flex-1 py-2 text-xs font-bold rounded-lg ${activeTab === 2 ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground'}`}>Rates & Commission</button>
+            </div>
+
+            <div className="p-6 pt-0 space-y-4 max-h-[60vh] overflow-y-auto">
+              {activeTab === 1 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Display Name</label>
+                    <input type="text" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+                      value={formData.displayname} onChange={e => setFormData({ ...formData, displayname: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Phone</label>
+                    <input type="text" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+                      value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Status</label>
+                    <select className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+                      value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 2 && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Chat Price (Per Min)</label>
+                    <input type="number" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+                      value={formData.chat_price_m} onChange={e => setFormData({ ...formData, chat_price_m: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Chat Commission (%)</label>
+                    <input type="number" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+                      value={formData.chat_commission} onChange={e => setFormData({ ...formData, chat_commission: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Call Price (Per Min)</label>
+                    <input type="number" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+                      value={formData.call_price_m} onChange={e => setFormData({ ...formData, call_price_m: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Call Commission (%)</label>
+                    <input type="number" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+                      value={formData.call_commission} onChange={e => setFormData({ ...formData, call_commission: e.target.value })} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-border flex gap-3">
+              <button onClick={() => setPopupUser(null)} className="flex-1 py-3 rounded-xl font-bold bg-muted hover:bg-muted/80 transition-all">Cancel</button>
+              <button onClick={handleSave} disabled={isSaving} className="flex-[2] py-3 rounded-xl font-bold bg-primary text-primary-foreground hover:opacity-90 transition-all flex items-center justify-center gap-2">
+                {isSaving ? "Saving..." : <><Save size={18} /> Approve User</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 };

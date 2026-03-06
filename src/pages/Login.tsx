@@ -9,34 +9,40 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+ const handleLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
 
-    try {
-      const response = await fetch("https://astroapi.inditechit.com/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+  try {
+    const response = await fetch("https://astroapi.inditechit.com/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (data.status === 200) {
-        // Store token/user data
-        localStorage.setItem("astro_admin_token", data.token);
-        localStorage.setItem("astro_user", JSON.stringify(data.user));
-        navigate("/");
-      } else {
-        alert(data.message || "Invalid credentials");
+    if (data.status === 200) {
+      // Check if user is active
+      if (data.user.status !== "active") {
+        alert("Your account is inactive. Please contact admin.");
+        return;
       }
-    } catch (error) {
-      console.error("Login error:", error);
-      alert("Something went wrong. Please try again.");
-    } finally {
-      setIsLoading(false);
+
+      // Store token/user data
+      localStorage.setItem("astro_admin_token", data.token);
+      localStorage.setItem("astro_user", JSON.stringify(data.user));
+      navigate("/");
+    } else {
+      alert(data.message || "Invalid credentials");
     }
-  };
+  } catch (error) {
+    console.error("Login error:", error);
+    alert("Something went wrong. Please try again.");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-[#0a0a0c] relative overflow-hidden">

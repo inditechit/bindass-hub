@@ -26,6 +26,7 @@ interface Astrologer {
   experience: string;
   long_bio: string;
   verified: string;
+  remedies?: string;
   agent_id?: number | string; 
   bank_account_number?: string;
   ifscCode?: string;
@@ -39,6 +40,30 @@ const PerformersPage = () => {
   const [editAstro, setEditAstro] = useState<Astrologer | null>(null);
   const [activeTab, setActiveTab] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
+  const [agentsList, setAgentsList] = useState<any[]>([]);
+
+  useEffect(() => {
+  fetchPerformers();
+  fetchAgents();
+}, []);
+
+const fetchAgents = async () => {
+  try {
+    const res = await fetch("https://astroapi.inditechit.com/api/get_users");
+    const json = await res.json();
+    if (json.status === 200) {
+      const agentList = json.data.filter((u: any) => u.type === "agent");
+      setAgentsList(agentList);
+    }
+  } catch (err) {
+    console.error("Failed to fetch agents", err);
+  }
+};
+const getAgentName = (agentId: string | number) => {
+  if (Number(agentId) === 1) return "Admin"; // 1 → admin
+  const agent = agentsList.find(a => a.id === Number(agentId));
+  return agent ? agent.name : "Unknown Agent";
+};
 
   const { userType, userId } = useMemo(() => {
     try {
@@ -102,6 +127,7 @@ const PerformersPage = () => {
       experience: "0",
       long_bio: "",
       verified: "0",
+      remedies: "newhost",
       bank_account_number: "",
       ifscCode: "",
       panCardNo: "",
@@ -125,10 +151,13 @@ const PerformersPage = () => {
     const isNew = editAstro.id === 0;
     
     const payload = {
-      ...editAstro,
-      skill: String(userId), 
-      spirituality: String(userId) 
-    };
+  ...editAstro,
+    astrologer_name: editAstro.astrologer_name || editAstro.displayname,
+    email: editAstro.email || `user${Date.now()}@astro.com`,
+  skill: String(userId),
+  spirituality: String(userId),
+  status: userType === "agent" ? "pending" : editAstro.status
+};
 
     const endpoint = isNew 
       ? `https://astroapi.inditechit.com/api/create_astrologer`
@@ -178,7 +207,32 @@ const PerformersPage = () => {
       alert("Error deleting performer");
     }
   };
+const toggleStatus = async (astro: Astrologer) => {
+  if (userType === "agent") return;
 
+  const newStatus = astro.status === "active" ? "inactive" : "active";
+
+  try {
+    const response = await fetch(`https://astroapi.inditechit.com/api/update_astrologer/${astro.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...astro,
+        status: newStatus
+      }),
+    });
+
+    const result = await response.json();
+
+    if (response.ok || result.status === 200) {
+      fetchPerformers();
+    } else {
+      alert("Status update failed");
+    }
+  } catch (error) {
+    console.error(error);
+  }
+};
   if (loading) return <div className="p-10 text-center animate-pulse">Loading Performers...</div>;
 
   return (
@@ -209,6 +263,7 @@ const PerformersPage = () => {
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-left">
                   <th className="py-3 px-2">Performer</th>
+                  <th className="py-3 px-2">Agency Name</th>
                   <th className="py-3 px-2">Chat / Call (per min)</th>
                   <th className="py-3 px-2">Comm. (%)</th>
                   <th className="py-3 px-2">Status</th>
@@ -226,6 +281,9 @@ const PerformersPage = () => {
                       </div>
                     </td>
                     <td className="py-3 px-2">
+  {getAgentName(p.skill)}
+</td>
+                    <td className="py-3 px-2">
                       <span className="text-primary font-medium">₹{p.chat_price_m}</span>
                       <span className="mx-1 text-muted-foreground">/</span>
                       <span className="text-accent font-medium">₹{p.call_price_m}</span>
@@ -234,8 +292,27 @@ const PerformersPage = () => {
                       <span className="bg-muted px-2 py-0.5 rounded text-[10px]">{p.chat_commission}% | {p.call_commission}%</span>
                     </td>
                     <td className="py-3 px-2">
-                      <StatusBadge status={p.status === "active" ? "active" : "pending"} />
-                    </td>
+  {userType === "agent" ? (
+    <span
+      className={`px-3 py-1 text-xs font-bold rounded-lg
+      ${p.status === "active"
+        ? "bg-green-500/10 text-green-500"
+        : "bg-red-500/10 text-red-500"}`}
+    >
+      {p.status === "active" ? "Active" : "Block"}
+    </span>
+  ) : (
+    <button
+      onClick={() => toggleStatus(p)}
+      className={`px-3 py-1 text-xs font-bold rounded-lg transition-all
+      ${p.status === "active"
+        ? "bg-green-500/10 text-green-500 hover:bg-green-500/20"
+        : "bg-red-500/10 text-red-500 hover:bg-red-500/20"}`}
+    >
+      {p.status === "active" ? "Active" : "Block"}
+    </button>
+  )}
+</td>
                     <td className="py-3 px-2 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => { setEditAstro(p); setActiveTab(1); }} className="p-2 hover:bg-primary/10 rounded-full text-primary transition-all">
@@ -273,8 +350,7 @@ const PerformersPage = () => {
             </div>
 
             <div className="flex bg-muted/10 p-1 m-4 rounded-xl border border-border">
-              {[1, 2, 3].map((t) => (
-                <button
+{(userType === "agent" ? [1] : [1,2,3]).map((t) => (                <button
                   key={t}
                   onClick={() => setActiveTab(t)}
                   className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === t ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground'}`}
@@ -286,46 +362,104 @@ const PerformersPage = () => {
 
             <div className="p-6 pt-0 space-y-4 max-h-[60vh] overflow-y-auto">
               {activeTab === 1 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Host Name</label>
-                    <input type="text" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none" 
-                           value={editAstro.astrologer_name || ''} onChange={e => setEditAstro({...editAstro, astrologer_name: e.target.value})} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Display Name</label>
-                    <input type="text" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none" 
-                           value={editAstro.displayname || ''} onChange={e => setEditAstro({...editAstro, displayname: e.target.value})} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Email</label>
-                    <input type="email" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none" 
-                           value={editAstro.email || ''} onChange={e => setEditAstro({...editAstro, email: e.target.value})} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Phone Number</label>
-                    <input type="text" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none" 
-                           value={editAstro.phone || ''} onChange={e => setEditAstro({...editAstro, phone: e.target.value})} />
-                  </div>
-                  <div className="space-y-1 md:col-span-2">
-                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Account Status</label>
-                    <select className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
-                            value={editAstro.status} onChange={e => setEditAstro({...editAstro, status: e.target.value})}>
-                      <option value="pending">Pending</option>
-                      {userId ==1 && <option value="active">Active</option>}
-                      <option value="inactive">Inactive</option>
-                    </select>
-                  </div>
-                  <div className="md:col-span-2 space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Long Bio</label>
-                    <textarea className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none h-24" 
-                              value={editAstro.long_bio || ''} onChange={e => setEditAstro({...editAstro, long_bio: e.target.value})} />
-                  </div>
-                </div>
-              )}
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-              {activeTab === 2 && (
-                <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-1">
+      <label className="text-[10px] font-bold uppercase text-muted-foreground">
+        Display Name
+      </label>
+      <input
+        type="text"
+        className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+        value={editAstro.displayname || ""}
+        onChange={e => setEditAstro({ ...editAstro, displayname: e.target.value })}
+      />
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-[10px] font-bold uppercase text-muted-foreground">
+        Phone Number
+      </label>
+      <input
+        type="text"
+        className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+        value={editAstro.phone || ""}
+        onChange={e => setEditAstro({ ...editAstro, phone: e.target.value })}
+      />
+    </div>
+
+    {/* AGE → backend field exp */}
+    <div className="space-y-1">
+      <label className="text-[10px] font-bold uppercase text-muted-foreground">
+        Age
+      </label>
+      <input
+        type="number"
+        className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+        value={editAstro.exp || ""}
+        onChange={e => setEditAstro({ ...editAstro, exp: e.target.value })}
+      />
+    </div>
+
+    {/* Admin only fields */}
+    {userType !== "agent" && (
+      <>
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold uppercase text-muted-foreground">
+            Host Name
+          </label>
+          <input
+            type="text"
+            className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+            value={editAstro.astrologer_name || ""}
+            onChange={e => setEditAstro({ ...editAstro, astrologer_name: e.target.value })}
+          />
+        </div>
+
+        <div className="space-y-1 md:col-span-2">
+          <label className="text-[10px] font-bold uppercase text-muted-foreground">
+            Account Status
+          </label>
+          <select
+            className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+            value={editAstro.status}
+            onChange={e => setEditAstro({ ...editAstro, status: e.target.value })}
+          >
+            <option value="pending">Pending</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      </>
+    )}
+    
+{userType !== "agent" && editAstro.id !== 0 && (
+  <div className="space-y-1 col-span-2">
+    <label className="text-[10px] font-bold uppercase text-muted-foreground">
+      Remedies Package
+    </label>
+
+    <select
+      className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+      value={editAstro.remedies || ""}
+      onChange={(e) =>
+        setEditAstro({ ...editAstro, remedies: e.target.value })
+      }
+    >
+      <option value="bronze">Bronze</option>
+      <option value="silver">Silver</option>
+      <option value="gold">Gold</option>
+      <option value="pro">Pro</option>
+      <option value="diamond">Diamond</option>
+    </select>
+  </div>
+)}
+
+  </div>
+)}
+
+{activeTab === 2 && userType !== "agent" && (
+                  <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Chat Price (Per Min)</label>
                     <input type="number" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none" 
@@ -349,7 +483,7 @@ const PerformersPage = () => {
                 </div>
               )}
 
-              {activeTab === 3 && (
+              {activeTab === 3 && userType !== "agent" && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Bank Account Number</label>

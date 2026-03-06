@@ -34,6 +34,7 @@ const Agents = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [newAgentForm, setNewAgentForm] = useState({
     name: "",
+    personality: "", // Repurposed for Agency Owner Name
     email: "",
     phone: "",
     password: "",
@@ -63,6 +64,29 @@ const Agents = () => {
     const { name, value } = e.target;
     setNewAgentForm((prev) => ({ ...prev, [name]: value }));
   };
+const toggleAgentStatus = async (agent: UserAPIResponse) => {
+  const newStatus = agent.status === "active" ? "inactive" : "active";
+
+  try {
+    const res = await fetch(`https://astroapi.inditechit.com/api/update_users/${agent.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }), // sirf status
+    });
+
+    const json = await res.json();
+    if (res.ok && (json.status === 200 || json.status === 201)) {
+      setAgents(prev =>
+        prev.map(a => (a.id === agent.id ? { ...a, status: newStatus } : a))
+      );
+    } else {
+      alert(json.message || "Failed to update status");
+    }
+  } catch (error) {
+    console.error("Status update error:", error);
+    alert("Error updating status");
+  }
+};
 
   const handleAddAgent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,7 +111,7 @@ const Agents = () => {
 
       if (json.status === 201 || json.status === 200) {
         setIsAddModalOpen(false);
-        setNewAgentForm({ name: "", email: "", phone: "", password: "", zodiac_sign: "" });
+        setNewAgentForm({ name: "", personality: "", email: "", phone: "", password: "", zodiac_sign: "" });
         await fetchAgents();
       } else {
         alert(json.message || "Failed to create agent");
@@ -163,9 +187,17 @@ const Agents = () => {
                     <td className="py-3 px-2 text-center text-primary font-medium">
                       {a.zodiac_sign && a.zodiac_sign !== "NA" ? `${a.zodiac_sign}%` : "0%"}
                     </td>
-                    <td className="py-3 px-2">
-                      <StatusBadge status={a.is_banned ? "banned" : a.status} />
-                    </td>
+                   <td className="py-3 px-2 text-center">
+  <button
+    onClick={() => toggleAgentStatus(a)}
+    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all
+      ${a.status === "active"
+        ? "bg-green-500/10 text-green-500 hover:bg-green-500/20"
+        : "bg-red-500/10 text-red-500 hover:bg-red-500/20"}`}
+  >
+    {a.status === "active" ? "Active" : "Block"}
+  </button>
+</td>
                     <td className="py-3 px-2 text-center">
                       <button onClick={() => setSelectedAgent(a)} className="p-2 rounded-full hover:bg-primary/10 text-primary transition-all">
                         <Eye className="w-4 h-4" />
@@ -256,7 +288,7 @@ const Agents = () => {
             
             <form onSubmit={handleAddAgent} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">Full Name</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Agency Name</label>
                 <input 
                   type="text" 
                   name="name"
@@ -264,12 +296,24 @@ const Agents = () => {
                   value={newAgentForm.name}
                   onChange={handleInputChange}
                   className="w-full p-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  placeholder="MSG Agency"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Agency Owner Name</label>
+                <input 
+                  type="text" 
+                  name="personality"
+                  required
+                  value={newAgentForm.personality}
+                  onChange={handleInputChange}
+                  className="w-full p-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                   placeholder="John Doe"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">Email Address</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Agency Email</label>
                 <input 
                   type="email" 
                   name="email"
@@ -282,7 +326,7 @@ const Agents = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">Phone Number</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Agency Phone Number</label>
                 <input 
                   type="tel" 
                   name="phone"
@@ -296,7 +340,7 @@ const Agents = () => {
 
               {/* Repurposed zodiac_sign input for Commission */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">Commission Percentage (%)</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Agency Commission Percentage (%)</label>
                 <input 
                   type="number" 
                   name="zodiac_sign"
@@ -311,7 +355,7 @@ const Agents = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">Temporary Password</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Agency Password</label>
                 <input 
                   type="password" 
                   name="password"
