@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Users as UsersIcon, Star, IndianRupee, Eye, Trash2, X, CheckCircle, Shield, CreditCard, Save } from "lucide-react";
+import { Users as UsersIcon, Star, IndianRupee, Eye, Trash2, X, CheckCircle, Shield, CreditCard, Save, UserPlus } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import StatCard from "@/components/shared/StatCard";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -8,8 +8,11 @@ interface Astrologer {
   id: number;
   displayname: string;
   astrologer_name: string;
+  email?: string;
+  password?: string;
   img_url: string;
   skill: string;
+  spirituality?: string;
   language: string;
   chat_price_m: string;
   call_price_m: string;
@@ -17,16 +20,17 @@ interface Astrologer {
   call_commission: string;
   rating: string;
   current_status: string;
-  status: string; // Used for Approval (e.g., "active", "pending")
+  status: string; 
   phone: string;
   wallet_balance: number;
   experience: string;
   long_bio: string;
   verified: string;
-  agent_id?: number | string; // Added to handle agent filtering
+  agent_id?: number | string; 
   bank_account_number?: string;
   ifscCode?: string;
   panCardNo?: string;
+  [key: string]: any; 
 }
 
 const PerformersPage = () => {
@@ -36,7 +40,6 @@ const PerformersPage = () => {
   const [activeTab, setActiveTab] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Retrieve user role and ID from localStorage
   const { userType, userId } = useMemo(() => {
     try {
       const storedUser = localStorage.getItem("astro_user");
@@ -49,6 +52,7 @@ const PerformersPage = () => {
     }
     return { userType: "admin", userId: null };
   }, []);
+  
 
   useEffect(() => {
     fetchPerformers();
@@ -68,36 +72,110 @@ const PerformersPage = () => {
     }
   };
 
-  // Filter performers based on user type
   const filteredPerformers = useMemo(() => {
     if (userType === "agent" && userId) {
-      // Using == to safely check if API returns string while storage has number, or vice versa
-      return performers.filter((p) => p.agent_id == userId);
+      return performers.filter((p) => p.skill == userId);
     }
-    return performers; // Admins see everyone
+    return performers;
   }, [performers, userType, userId]);
 
-  const handleUpdate = async () => {
+  const handleAddNew = () => {
+    setEditAstro({
+      id: 0, 
+      displayname: "",
+      astrologer_name: "",
+      email: "",
+      password: "DefaultPassword123!", 
+      img_url: "/img/no-dp.png",
+      skill: String(userId), 
+      spirituality: String(userId),
+      language: "Hindi, English",
+      chat_price_m: "0",
+      call_price_m: "0",
+      chat_commission: "0",
+      call_commission: "0",
+      rating: "0",
+      current_status: "Offline",
+      status: "pending",
+      phone: "",
+      wallet_balance: 0,
+      experience: "0",
+      long_bio: "",
+      verified: "0",
+      bank_account_number: "",
+      ifscCode: "",
+      panCardNo: "",
+      otp: "123456",
+      currency: "INR",
+      main_cat: "Astrology",
+      sub_cat: "Vedic",
+      gender: "male",
+      country: "India",
+      county_code: "IN",
+      activate: "0",
+      working_ex: "0"
+    });
+    setActiveTab(1);
+  };
+
+  const handleSave = async () => {
     if (!editAstro) return;
     setIsSaving(true);
+
+    const isNew = editAstro.id === 0;
+    
+    const payload = {
+      ...editAstro,
+      skill: String(userId), 
+      spirituality: String(userId) 
+    };
+
+    const endpoint = isNew 
+      ? `https://astroapi.inditechit.com/api/create_astrologer`
+      : `https://astroapi.inditechit.com/api/update_astrologer/${editAstro.id}`;
+      
+    const method = isNew ? "POST" : "PUT";
+
     try {
-      const response = await fetch(`https://astroapi.inditechit.com/api/update_astrologer/${editAstro.id}`, {
-        method: "PUT",
+      const response = await fetch(endpoint, {
+        method: method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editAstro),
+        body: JSON.stringify(payload),
       });
       const result = await response.json();
-      if (response.ok) {
-        alert("Astrologer updated successfully!");
+      
+      if (response.ok || result.status === 200 || result.status === 201) {
+        alert(`Host ${isNew ? 'added' : 'updated'} successfully!`);
         setEditAstro(null);
         fetchPerformers();
       } else {
-        alert(result.message || "Update failed");
+        alert(result.message || "Save operation failed");
       }
     } catch (error) {
-      alert("Error updating performer");
+      alert("Error saving performer data");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("Are you sure you want to delete this performer? This action cannot be undone.")) return;
+
+    try {
+      const response = await fetch(`https://astroapi.inditechit.com/api/delete_astrologer/${id}`, {
+        method: "DELETE",
+      });
+      const result = await response.json();
+
+      if (response.ok || result.status === 200) {
+        alert("Performer deleted successfully");
+        fetchPerformers(); // Refresh the list
+      } else {
+        alert(result.message || "Failed to delete performer");
+      }
+    } catch (error) {
+      console.error("Delete error:", error);
+      alert("Error deleting performer");
     }
   };
 
@@ -106,12 +184,19 @@ const PerformersPage = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-display font-bold">Performer Management</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage profiles, pricing, and approvals</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-display font-bold">Performer Management</h1>
+            <p className="text-sm text-muted-foreground mt-1">Manage profiles, pricing, and approvals</p>
+          </div>
+          <button 
+            onClick={handleAddNew}
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-xl flex items-center gap-2 font-bold hover:opacity-90 transition-all"
+          >
+            <UserPlus size={18} /> Add Performer
+          </button>
         </div>
 
-        {/* Dynamic Stats Section using filtered data */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <StatCard title="Total Performers" value={filteredPerformers.length.toString()} icon={UsersIcon} glow="purple" />
           <StatCard title="Pending Approvals" value={filteredPerformers.filter(p => p.status !== "active").length.toString()} icon={Shield} glow="gold" />
@@ -152,9 +237,14 @@ const PerformersPage = () => {
                       <StatusBadge status={p.status === "active" ? "active" : "pending"} />
                     </td>
                     <td className="py-3 px-2 text-right">
-                      <button onClick={() => { setEditAstro(p); setActiveTab(1); }} className="p-2 hover:bg-primary/10 rounded-full text-primary transition-all">
-                        <Eye size={16} />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => { setEditAstro(p); setActiveTab(1); }} className="p-2 hover:bg-primary/10 rounded-full text-primary transition-all">
+                          <Eye size={16} />
+                        </button>
+                        <button onClick={() => handleDelete(p.id)} className="p-2 hover:bg-red-500/10 rounded-full text-red-500 transition-all">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -171,19 +261,17 @@ const PerformersPage = () => {
         </div>
       </div>
 
-      {/* --- MULTI-PART UPDATE POPUP --- */}
       {editAstro && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-card border border-border w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
             <div className="p-6 border-b border-border flex justify-between items-center bg-muted/20">
               <div className="flex items-center gap-3">
-                <img src={editAstro.img_url} className="w-10 h-10 rounded-full object-cover" alt="" />
-                <h2 className="text-xl font-bold">Update {editAstro.displayname}</h2>
+                {editAstro.id !== 0 && <img src={editAstro.img_url} className="w-10 h-10 rounded-full object-cover" alt="" />}
+                <h2 className="text-xl font-bold">{editAstro.id === 0 ? "Add New Performer" : `Update ${editAstro.displayname}`}</h2>
               </div>
               <button onClick={() => setEditAstro(null)} className="p-2 hover:bg-muted rounded-full"><X size={20} /></button>
             </div>
 
-            {/* Tab Navigation */}
             <div className="flex bg-muted/10 p-1 m-4 rounded-xl border border-border">
               {[1, 2, 3].map((t) => (
                 <button
@@ -200,23 +288,38 @@ const PerformersPage = () => {
               {activeTab === 1 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Display Name</label>
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Host Name</label>
                     <input type="text" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none" 
-                           value={editAstro.displayname} onChange={e => setEditAstro({...editAstro, displayname: e.target.value})} />
+                           value={editAstro.astrologer_name || ''} onChange={e => setEditAstro({...editAstro, astrologer_name: e.target.value})} />
                   </div>
                   <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Display Name</label>
+                    <input type="text" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none" 
+                           value={editAstro.displayname || ''} onChange={e => setEditAstro({...editAstro, displayname: e.target.value})} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Email</label>
+                    <input type="email" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none" 
+                           value={editAstro.email || ''} onChange={e => setEditAstro({...editAstro, email: e.target.value})} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Phone Number</label>
+                    <input type="text" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none" 
+                           value={editAstro.phone || ''} onChange={e => setEditAstro({...editAstro, phone: e.target.value})} />
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Account Status</label>
                     <select className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
                             value={editAstro.status} onChange={e => setEditAstro({...editAstro, status: e.target.value})}>
-                      <option value="active">Active (Approved)</option>
                       <option value="pending">Pending</option>
+                      {userId ==1 && <option value="active">Active</option>}
                       <option value="inactive">Inactive</option>
                     </select>
                   </div>
                   <div className="md:col-span-2 space-y-1">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Long Bio</label>
                     <textarea className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none h-24" 
-                              value={editAstro.long_bio} onChange={e => setEditAstro({...editAstro, long_bio: e.target.value})} />
+                              value={editAstro.long_bio || ''} onChange={e => setEditAstro({...editAstro, long_bio: e.target.value})} />
                   </div>
                 </div>
               )}
@@ -226,22 +329,22 @@ const PerformersPage = () => {
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Chat Price (Per Min)</label>
                     <input type="number" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none" 
-                           value={editAstro.chat_price_m} onChange={e => setEditAstro({...editAstro, chat_price_m: e.target.value})} />
+                           value={editAstro.chat_price_m || ''} onChange={e => setEditAstro({...editAstro, chat_price_m: e.target.value})} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Chat Commission (%)</label>
                     <input type="number" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none" 
-                           value={editAstro.chat_commission} onChange={e => setEditAstro({...editAstro, chat_commission: e.target.value})} />
+                           value={editAstro.chat_commission || ''} onChange={e => setEditAstro({...editAstro, chat_commission: e.target.value})} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Call Price (Per Min)</label>
                     <input type="number" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none" 
-                           value={editAstro.call_price_m} onChange={e => setEditAstro({...editAstro, call_price_m: e.target.value})} />
+                           value={editAstro.call_price_m || ''} onChange={e => setEditAstro({...editAstro, call_price_m: e.target.value})} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Call Commission (%)</label>
                     <input type="number" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none" 
-                           value={editAstro.call_commission} onChange={e => setEditAstro({...editAstro, call_commission: e.target.value})} />
+                           value={editAstro.call_commission || ''} onChange={e => setEditAstro({...editAstro, call_commission: e.target.value})} />
                   </div>
                 </div>
               )}
@@ -266,7 +369,7 @@ const PerformersPage = () => {
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Verified (0/1)</label>
                     <select className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
-                            value={editAstro.verified} onChange={e => setEditAstro({...editAstro, verified: e.target.value})}>
+                            value={editAstro.verified || ''} onChange={e => setEditAstro({...editAstro, verified: e.target.value})}>
                       <option value="1">Verified (Badge On)</option>
                       <option value="0">Unverified</option>
                     </select>
@@ -278,11 +381,11 @@ const PerformersPage = () => {
             <div className="p-6 border-t border-border flex gap-3">
               <button onClick={() => setEditAstro(null)} className="flex-1 py-3 rounded-xl font-bold bg-muted hover:bg-muted/80 transition-all">Cancel</button>
               <button 
-                onClick={handleUpdate} 
+                onClick={handleSave} 
                 disabled={isSaving}
                 className="flex-[2] py-3 rounded-xl font-bold bg-primary text-primary-foreground hover:opacity-90 transition-all flex items-center justify-center gap-2"
               >
-                {isSaving ? "Updating..." : <><Save size={18} /> Update & Approve Performer</>}
+                {isSaving ? "Saving..." : <><Save size={18} /> {editAstro.id === 0 ? "Save Performer" : "Update & Approve Performer"}</>}
               </button>
             </div>
           </div>

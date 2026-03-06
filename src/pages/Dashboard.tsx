@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { IndianRupee, Users, UserCog, Crown, MessageSquare, TrendingUp, History } from "lucide-react";
+import { IndianRupee, Users, UserCog, Crown, MessageSquare, TrendingUp, History, Wallet } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import StatCard from "@/components/shared/StatCard";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -28,37 +28,52 @@ interface Transaction {
 const Dashboard = () => {
   const [sessions, setSessions] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [agentBalance, setAgentBalance] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
-  // Retrieve user role from localStorage
-  const userType = useMemo(() => {
+  // Retrieve user role and ID from localStorage
+  const { userType, userId } = useMemo(() => {
     try {
       const storedUser = localStorage.getItem("astro_user");
       if (storedUser) {
         const parsed = JSON.parse(storedUser);
-        return parsed?.type || "admin";
+        return { userType: parsed?.type || "admin", userId: parsed?.id || null };
       }
     } catch (error) {
       console.error("Failed to parse astro_user from localStorage", error);
     }
-    return "admin";
+    return { userType: "admin", userId: null };
   }, []);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Fetch both APIs via your proxy to avoid CORS
-        const [sessionRes, transRes] = await Promise.all([
-          fetch("https://astroapi.inditechit.com/api/get_chat_session"),
-          fetch("https://astroapi.inditechit.com/api/get_transaction")
-        ]);
+        if (userType === "agent" && userId) {
+          // If the user is an agent, only fetch the users list to get their specific wallet balance
+          const userRes = await fetch("https://astroapi.inditechit.com/api/get_users");
+          const userJson = await userRes.json();
+          
+          if (userJson.status === 200) {
+            // Find the logged-in agent by ID
+            const agentData = userJson.data.find((u: any) => u.id == userId);
+            if (agentData) {
+              setAgentBalance(agentData.wallet_balance || 0);
+            }
+          }
+        } else {
+          // If admin, fetch dashboard analytics (sessions and transactions)
+          const [sessionRes, transRes] = await Promise.all([
+            fetch("https://astroapi.inditechit.com/api/get_chat_session"),
+            fetch("https://astroapi.inditechit.com/api/get_transaction")
+          ]);
 
-        const sessionJson = await sessionRes.json();
-        const transJson = await transRes.json();
+          const sessionJson = await sessionRes.json();
+          const transJson = await transRes.json();
 
-        if (sessionJson.status === 200 && transJson.status === 200) {
-          setSessions(sessionJson.data);
-          setTransactions(transJson.data);
+          if (sessionJson.status === 200 && transJson.status === 200) {
+            setSessions(sessionJson.data);
+            setTransactions(transJson.data);
+          }
         }
       } catch (error) {
         console.error("Dashboard Fetch Error:", error);
@@ -68,20 +83,17 @@ const Dashboard = () => {
     };
 
     fetchDashboardData();
-  }, []);
+  }, [userType, userId]);
 
-  // --- Financial Calculations ---
-  // Total Revenue: All successful debits from users
+  // --- Financial Calculations (For Admins Only) ---
   const totalRevenue = transactions
     .filter(t => t.transaction_type === 'debit' && t.status === 'success')
     .reduce((acc, t) => acc + t.amount, 0);
 
-  // Gifts: Sum of gift_debit transactions
   const totalGifts = transactions
     .filter(t => t.transaction_type === 'gift_debit')
     .reduce((acc, t) => acc + t.amount, 0);
 
-  // Recent merged activity: Link transactions to sessions
   const mergedActivity = sessions.slice(0, 10).map(s => {
     const sessionData = s.chatSession;
     const matchingTrans = transactions.find(t => t.session_id === sessionData.id);
@@ -103,22 +115,30 @@ const Dashboard = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-display font-bold">Live Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">Real-time session and transaction monitoring</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {userType === "agent" ? "Your personal wallet overview" : "Real-time session and transaction monitoring"}
+          </p>
         </div>
 
         {/* --- Dynamic Stats Section --- */}
         <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4`}>
-          <StatCard 
-            title="Total Revenue" 
-            value={`₹${totalRevenue.toLocaleString()}`} 
-            subtitle="Successful Debits" 
-            icon={IndianRupee} 
-            glow="gold" 
-          />
-          
-          {/* Hide other stats if user is an agent */}
-          {userType !== "agent" && (
+          {userType === "agent" ? (
+            <StatCard 
+              title="My Wallet Balance" 
+              value={`₹${agentBalance.toLocaleString()}`} 
+              subtitle="Available Funds" 
+              icon={Wallet} 
+              glow="gold" 
+            />
+          ) : (
             <>
+              <StatCard 
+                title="Total Revenue" 
+                value={`₹${totalRevenue.toLocaleString()}`} 
+                subtitle="Successful Debits" 
+                icon={IndianRupee} 
+                glow="gold" 
+              />
               <StatCard 
                 title="Gift Revenue" 
                 value={`₹${totalGifts.toLocaleString()}`} 
@@ -128,14 +148,14 @@ const Dashboard = () => {
               />
               <StatCard 
                 title="Active Sessions" 
-                value={sessions.filter(s => s.chatSession.status === "In Progress").length.toString()} 
+                value={sessions.filter(s => s.chatSession?.status === "In Progress").length.toString()} 
                 subtitle="Currently Live" 
                 icon={MessageSquare} 
                 glow="green" 
               />
               <StatCard 
                 title="Success Rate" 
-                value={`${((transactions.filter(t => t.status === 'success').length / transactions.length) * 100).toFixed(1)}%`} 
+                value={`${transactions.length ? ((transactions.filter(t => t.status === 'success').length / transactions.length) * 100).toFixed(1) : 0}%`} 
                 subtitle="Txn Success" 
                 icon={Users} 
                 glow="purple" 
@@ -144,10 +164,9 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/* Hide tables entirely if user is an agent */}
+        {/* --- Admin Only Tables --- */}
         {userType !== "agent" && (
           <>
-            {/* --- Recent Activity Table --- */}
             <div className="glass-card p-5">
               <h2 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
                 <History className="w-4 h-4 text-primary" />
@@ -182,12 +201,18 @@ const Dashboard = () => {
                         </td>
                       </tr>
                     ))}
+                    {mergedActivity.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-6 text-center text-muted-foreground">
+                          No recent sessions.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
 
-            {/* --- Recent Transactions Feed --- */}
             <div className="glass-card p-5">
               <h2 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
                 <IndianRupee className="w-4 h-4 text-accent" />
@@ -214,6 +239,13 @@ const Dashboard = () => {
                         <td className="py-3 px-2"><StatusBadge status={t.status} /></td>
                       </tr>
                     ))}
+                    {transactions.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="py-6 text-center text-muted-foreground">
+                          No recent transactions.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
