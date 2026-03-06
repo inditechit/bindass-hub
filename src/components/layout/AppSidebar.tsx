@@ -1,4 +1,5 @@
-import { Link, useLocation, useNavigate } from "react-router-dom"; // Added useNavigate
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useMemo } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -10,7 +11,7 @@ import {
   TrendingUp,
   Crown,
   LogOut,
-  HelpCircle, // Added LogOut icon
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +29,21 @@ const navItems = [
 
 const AppSidebar = () => {
   const location = useLocation();
-  const navigate = useNavigate(); // Hook for redirection
+  const navigate = useNavigate();
+
+  // Retrieve and parse user data safely
+  const { userType, userData } = useMemo(() => {
+    try {
+      const storedUser = localStorage.getItem("astro_user");
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        return { userType: parsed?.type || "admin", userData: parsed };
+      }
+    } catch (error) {
+      console.error("Failed to parse astro_user from localStorage", error);
+    }
+    return { userType: "admin", userData: null };
+  }, []);
 
   const handleLogout = () => {
     // 1. Clear all auth data
@@ -39,15 +54,30 @@ const AppSidebar = () => {
     navigate("/login");
   };
 
+  // Filter nav items based on role
+  const filteredNavItems = useMemo(() => {
+    if (userType === "agent") {
+      const agentAllowedPaths = ["/", "/support", "/recharges", "/users", "/logs"];
+      return navItems.filter((item) => agentAllowedPaths.includes(item.path));
+    }
+    return navItems; // Admins and others see everything
+  }, [userType]);
+
+  // Extract user info for the profile card
+  const userName = userData?.name || "Super Admin";
+  const userEmail = userData?.email || "admin@bindass.chat";
+  const userInitials = userName.substring(0, 2).toUpperCase();
+  const panelTitle = userType === "agent" ? "Agent Panel" : "Super Admin Panel";
+
   return (
     <aside className="sidebar-gradient w-64 min-h-screen border-r border-sidebar-border flex flex-col fixed left-0 top-0 z-30">
       <div className="p-6 border-b border-sidebar-border">
         <h1 className="font-display text-xl font-bold gradient-text">Bindass Chat</h1>
-        <p className="text-xs text-muted-foreground mt-1">Super Admin Panel</p>
+        <p className="text-xs text-muted-foreground mt-1">{panelTitle}</p>
       </div>
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto scrollbar-thin">
-        {navItems.map((item) => {
+        {filteredNavItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
             <Link
@@ -71,12 +101,16 @@ const AppSidebar = () => {
       <div className="p-4 border-t border-sidebar-border space-y-3">
         {/* Profile Card */}
         <div className="glass-card p-3 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold">
-            SA
+          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold overflow-hidden">
+            {userData?.img_url ? (
+              <img src={userData.img_url} alt={userName} className="w-full h-full object-cover" />
+            ) : (
+              userInitials
+            )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-foreground truncate">Super Admin</p>
-            <p className="text-[10px] text-muted-foreground truncate">admin@bindass.chat</p>
+            <p className="text-xs font-medium text-foreground truncate">{userName}</p>
+            <p className="text-[10px] text-muted-foreground truncate">{userEmail}</p>
           </div>
         </div>
 
