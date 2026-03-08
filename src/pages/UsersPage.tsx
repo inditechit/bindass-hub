@@ -43,27 +43,28 @@ const PerformersPage = () => {
   const [agentsList, setAgentsList] = useState<any[]>([]);
 
   useEffect(() => {
-  fetchPerformers();
-  fetchAgents();
-}, []);
+    fetchPerformers();
+    fetchAgents();
+  }, []);
 
-const fetchAgents = async () => {
-  try {
-    const res = await fetch("https://astroapi.inditechit.com/api/get_users");
-    const json = await res.json();
-    if (json.status === 200) {
-      const agentList = json.data.filter((u: any) => u.type === "agent");
-      setAgentsList(agentList);
+  const fetchAgents = async () => {
+    try {
+      const res = await fetch("https://astroapi.inditechit.com/api/get_users");
+      const json = await res.json();
+      if (json.status === 200) {
+        const agentList = json.data.filter((u: any) => u.type === "agent");
+        setAgentsList(agentList);
+      }
+    } catch (err) {
+      console.error("Failed to fetch agents", err);
     }
-  } catch (err) {
-    console.error("Failed to fetch agents", err);
-  }
-};
-const getAgentName = (agentId: string | number) => {
-  if (Number(agentId) === 1) return "Admin"; // 1 → admin
-  const agent = agentsList.find(a => a.id === Number(agentId));
-  return agent ? agent.name : "Unknown Agent";
-};
+  };
+
+  const getAgentName = (agentId: string | number) => {
+    if (Number(agentId) === 1) return "Admin"; // 1 → admin
+    const agent = agentsList.find(a => a.id === Number(agentId));
+    return agent ? agent.name : "Unknown Agent";
+  };
 
   const { userType, userId } = useMemo(() => {
     try {
@@ -78,11 +79,6 @@ const getAgentName = (agentId: string | number) => {
     return { userType: "admin", userId: null };
   }, []);
   
-
-  useEffect(() => {
-    fetchPerformers();
-  }, []);
-
   const fetchPerformers = async () => {
     try {
       const response = await fetch("https://astroapi.inditechit.com/api/get_astrologer");
@@ -99,7 +95,8 @@ const getAgentName = (agentId: string | number) => {
 
   const filteredPerformers = useMemo(() => {
     if (userType === "agent" && userId) {
-      return performers.filter((p) => p.skill == userId);
+      // Safely compare strings
+      return performers.filter((p) => String(p.skill) === String(userId));
     }
     return performers;
   }, [performers, userType, userId]);
@@ -151,13 +148,13 @@ const getAgentName = (agentId: string | number) => {
     const isNew = editAstro.id === 0;
     
     const payload = {
-  ...editAstro,
-    astrologer_name: editAstro.astrologer_name || editAstro.displayname,
-    email: editAstro.email || `user${Date.now()}@astro.com`,
-  skill: String(userId),
-  spirituality: String(userId),
-  status: userType === "agent" ? "pending" : editAstro.status
-};
+      ...editAstro,
+      astrologer_name: editAstro.astrologer_name || editAstro.displayname,
+      email: editAstro.email || `user${Date.now()}@astro.com`,
+      skill: String(userId),
+      spirituality: String(userId),
+      status: userType === "agent" ? "pending" : editAstro.status
+    };
 
     const endpoint = isNew 
       ? `https://astroapi.inditechit.com/api/create_astrologer`
@@ -198,7 +195,7 @@ const getAgentName = (agentId: string | number) => {
 
       if (response.ok || result.status === 200) {
         alert("Performer deleted successfully");
-        fetchPerformers(); // Refresh the list
+        fetchPerformers(); 
       } else {
         alert(result.message || "Failed to delete performer");
       }
@@ -207,32 +204,34 @@ const getAgentName = (agentId: string | number) => {
       alert("Error deleting performer");
     }
   };
-const toggleStatus = async (astro: Astrologer) => {
-  if (userType === "agent") return;
 
-  const newStatus = astro.status === "active" ? "inactive" : "active";
+  const toggleStatus = async (astro: Astrologer) => {
+    if (userType === "agent") return;
 
-  try {
-    const response = await fetch(`https://astroapi.inditechit.com/api/update_astrologer/${astro.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...astro,
-        status: newStatus
-      }),
-    });
+    const newStatus = astro.status === "active" ? "inactive" : "active";
 
-    const result = await response.json();
+    try {
+      const response = await fetch(`https://astroapi.inditechit.com/api/update_astrologer/${astro.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...astro,
+          status: newStatus
+        }),
+      });
 
-    if (response.ok || result.status === 200) {
-      fetchPerformers();
-    } else {
-      alert("Status update failed");
+      const result = await response.json();
+
+      if (response.ok || result.status === 200) {
+        fetchPerformers();
+      } else {
+        alert("Status update failed");
+      }
+    } catch (error) {
+      console.error(error);
     }
-  } catch (error) {
-    console.error(error);
-  }
-};
+  };
+
   if (loading) return <div className="p-10 text-center animate-pulse">Loading Performers...</div>;
 
   return (
@@ -254,7 +253,8 @@ const toggleStatus = async (astro: Astrologer) => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <StatCard title="Total Performers" value={filteredPerformers.length.toString()} icon={UsersIcon} glow="purple" />
           <StatCard title="Pending Approvals" value={filteredPerformers.filter(p => p.status !== "active").length.toString()} icon={Shield} glow="gold" />
-          <StatCard title="Total Payouts" value={`₹${filteredPerformers.reduce((s, p) => s + p.wallet_balance, 0).toLocaleString()}`} icon={IndianRupee} glow="green" />
+          {/* Safe reduce for wallet balances */}
+          <StatCard title="Total Payouts" value={`₹${filteredPerformers.reduce((s, p) => s + (Number(p.wallet_balance) || 0), 0).toLocaleString()}`} icon={IndianRupee} glow="green" />
         </div>
 
         <div className="glass-card p-5">
@@ -274,45 +274,47 @@ const toggleStatus = async (astro: Astrologer) => {
                 {filteredPerformers.map((p) => (
                   <tr key={p.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                     <td className="py-3 px-2 flex items-center gap-3">
-                      <img src={p.img_url} className="w-9 h-9 rounded-full object-cover" alt="" />
+                      <img src={p.img_url || "https://static.vecteezy.com/system/resources/previews/032/176/125/non_2x/business-avatar-profile-black-icon-woman-of-user-flat-symbol-in-trendy-filled-style-isolated-on-female-profile-people-diverse-face-for-social-network-or-web-vector.jpg"} className="w-9 h-9 rounded-full object-cover" alt="" />
                       <div>
-                        <p className="font-semibold">{p.displayname}</p>
-                        <p className="text-[10px] text-muted-foreground">{p.skill.split(',')[0]}</p>
+                        {/* Safe fallback for displayname and astrologer_name */}
+                        <p className="font-semibold">{p.displayname || p.astrologer_name || "Unknown"}</p>
+                        {/* Safe check before splitting skill string */}
+                        <p className="text-[10px] text-muted-foreground">{p.skill ? String(p.skill).split(',')[0] : 'N/A'}</p>
                       </div>
                     </td>
                     <td className="py-3 px-2">
-  {getAgentName(p.skill)}
-</td>
+                      {getAgentName(p.skill)}
+                    </td>
                     <td className="py-3 px-2">
-                      <span className="text-primary font-medium">₹{p.chat_price_m}</span>
+                      <span className="text-primary font-medium">₹{p.chat_price_m || 0}</span>
                       <span className="mx-1 text-muted-foreground">/</span>
-                      <span className="text-accent font-medium">₹{p.call_price_m}</span>
+                      <span className="text-accent font-medium">₹{p.call_price_m || 0}</span>
                     </td>
                     <td className="py-3 px-2">
-                      <span className="bg-muted px-2 py-0.5 rounded text-[10px]">{p.chat_commission}% | {p.call_commission}%</span>
+                      <span className="bg-muted px-2 py-0.5 rounded text-[10px]">{p.chat_commission || 0}% | {p.call_commission || 0}%</span>
                     </td>
                     <td className="py-3 px-2">
-  {userType === "agent" ? (
-    <span
-      className={`px-3 py-1 text-xs font-bold rounded-lg
-      ${p.status === "active"
-        ? "bg-green-500/10 text-green-500"
-        : "bg-red-500/10 text-red-500"}`}
-    >
-      {p.status === "active" ? "Active" : "Block"}
-    </span>
-  ) : (
-    <button
-      onClick={() => toggleStatus(p)}
-      className={`px-3 py-1 text-xs font-bold rounded-lg transition-all
-      ${p.status === "active"
-        ? "bg-green-500/10 text-green-500 hover:bg-green-500/20"
-        : "bg-red-500/10 text-red-500 hover:bg-red-500/20"}`}
-    >
-      {p.status === "active" ? "Active" : "Block"}
-    </button>
-  )}
-</td>
+                      {userType === "agent" ? (
+                        <span
+                          className={`px-3 py-1 text-xs font-bold rounded-lg
+                          ${p.status === "active"
+                            ? "bg-green-500/10 text-green-500"
+                            : "bg-red-500/10 text-red-500"}`}
+                        >
+                          {p.status === "active" ? "Active" : "Block"}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => toggleStatus(p)}
+                          className={`px-3 py-1 text-xs font-bold rounded-lg transition-all
+                          ${p.status === "active"
+                            ? "bg-green-500/10 text-green-500 hover:bg-green-500/20"
+                            : "bg-red-500/10 text-red-500 hover:bg-red-500/20"}`}
+                        >
+                          {p.status === "active" ? "Active" : "Block"}
+                        </button>
+                      )}
+                    </td>
                     <td className="py-3 px-2 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => { setEditAstro(p); setActiveTab(1); }} className="p-2 hover:bg-primary/10 rounded-full text-primary transition-all">
@@ -327,7 +329,7 @@ const toggleStatus = async (astro: Astrologer) => {
                 ))}
                 {filteredPerformers.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-6 text-center text-muted-foreground">
+                    <td colSpan={6} className="py-6 text-center text-muted-foreground">
                       No performers found.
                     </td>
                   </tr>
@@ -344,13 +346,14 @@ const toggleStatus = async (astro: Astrologer) => {
             <div className="p-6 border-b border-border flex justify-between items-center bg-muted/20">
               <div className="flex items-center gap-3">
                 {editAstro.id !== 0 && <img src={editAstro.img_url} className="w-10 h-10 rounded-full object-cover" alt="" />}
-                <h2 className="text-xl font-bold">{editAstro.id === 0 ? "Add New Performer" : `Update ${editAstro.displayname}`}</h2>
+                <h2 className="text-xl font-bold">{editAstro.id === 0 ? "Add New Performer" : `Update ${editAstro.displayname || editAstro.astrologer_name}`}</h2>
               </div>
               <button onClick={() => setEditAstro(null)} className="p-2 hover:bg-muted rounded-full"><X size={20} /></button>
             </div>
 
             <div className="flex bg-muted/10 p-1 m-4 rounded-xl border border-border">
-{(userType === "agent" ? [1] : [1,2,3]).map((t) => (                <button
+              {(userType === "agent" ? [1] : [1,2,3]).map((t) => (                
+                <button
                   key={t}
                   onClick={() => setActiveTab(t)}
                   className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === t ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground'}`}
@@ -362,104 +365,101 @@ const toggleStatus = async (astro: Astrologer) => {
 
             <div className="p-6 pt-0 space-y-4 max-h-[60vh] overflow-y-auto">
               {activeTab === 1 && (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-    <div className="space-y-1">
-      <label className="text-[10px] font-bold uppercase text-muted-foreground">
-        Display Name
-      </label>
-      <input
-        type="text"
-        className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
-        value={editAstro.displayname || ""}
-        onChange={e => setEditAstro({ ...editAstro, displayname: e.target.value })}
-      />
-    </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">
+                      Display Name
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+                      value={editAstro.displayname || ""}
+                      onChange={e => setEditAstro({ ...editAstro, displayname: e.target.value })}
+                    />
+                  </div>
 
-    <div className="space-y-1">
-      <label className="text-[10px] font-bold uppercase text-muted-foreground">
-        Phone Number
-      </label>
-      <input
-        type="text"
-        className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
-        value={editAstro.phone || ""}
-        onChange={e => setEditAstro({ ...editAstro, phone: e.target.value })}
-      />
-    </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">
+                      Phone Number
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+                      value={editAstro.phone || ""}
+                      onChange={e => setEditAstro({ ...editAstro, phone: e.target.value })}
+                    />
+                  </div>
 
-    {/* AGE → backend field exp */}
-    <div className="space-y-1">
-      <label className="text-[10px] font-bold uppercase text-muted-foreground">
-        Age
-      </label>
-      <input
-        type="number"
-        className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
-        value={editAstro.exp || ""}
-        onChange={e => setEditAstro({ ...editAstro, exp: e.target.value })}
-      />
-    </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">
+                      Age
+                    </label>
+                    <input
+                      type="number"
+                      className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+                      value={editAstro.exp || ""}
+                      onChange={e => setEditAstro({ ...editAstro, exp: e.target.value })}
+                    />
+                  </div>
 
-    {/* Admin only fields */}
-    {userType !== "agent" && (
-      <>
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase text-muted-foreground">
-            Host Name
-          </label>
-          <input
-            type="text"
-            className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
-            value={editAstro.astrologer_name || ""}
-            onChange={e => setEditAstro({ ...editAstro, astrologer_name: e.target.value })}
-          />
-        </div>
+                  {userType !== "agent" && (
+                    <>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-muted-foreground">
+                          Host Name
+                        </label>
+                        <input
+                          type="text"
+                          className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+                          value={editAstro.astrologer_name || ""}
+                          onChange={e => setEditAstro({ ...editAstro, astrologer_name: e.target.value })}
+                        />
+                      </div>
 
-        <div className="space-y-1 md:col-span-2">
-          <label className="text-[10px] font-bold uppercase text-muted-foreground">
-            Account Status
-          </label>
-          <select
-            className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
-            value={editAstro.status}
-            onChange={e => setEditAstro({ ...editAstro, status: e.target.value })}
-          >
-            <option value="pending">Pending</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-        </div>
-      </>
-    )}
-    
-{userType !== "agent" && editAstro.id !== 0 && (
-  <div className="space-y-1 col-span-2">
-    <label className="text-[10px] font-bold uppercase text-muted-foreground">
-      Remedies Package
-    </label>
+                      <div className="space-y-1 md:col-span-2">
+                        <label className="text-[10px] font-bold uppercase text-muted-foreground">
+                          Account Status
+                        </label>
+                        <select
+                          className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+                          value={editAstro.status || "pending"}
+                          onChange={e => setEditAstro({ ...editAstro, status: e.target.value })}
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                        </select>
+                      </div>
+                    </>
+                  )}
+                  
+                  {userType !== "agent" && editAstro.id !== 0 && (
+                    <div className="space-y-1 col-span-2">
+                      <label className="text-[10px] font-bold uppercase text-muted-foreground">
+                        Remedies Package
+                      </label>
+                      <select
+                        className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
+                        value={editAstro.remedies || ""}
+                        onChange={(e) =>
+                          setEditAstro({ ...editAstro, remedies: e.target.value })
+                        }
+                      >
+                        <option value="bronze">Bronze</option>
+                        <option value="silver">Silver</option>
+                        <option value="gold">Gold</option>
+                        <option value="pro">Pro</option>
+                        <option value="diamond">Diamond</option>
+                      </select>
+                    </div>
+                  )}
 
-    <select
-      className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none"
-      value={editAstro.remedies || ""}
-      onChange={(e) =>
-        setEditAstro({ ...editAstro, remedies: e.target.value })
-      }
-    >
-      <option value="bronze">Bronze</option>
-      <option value="silver">Silver</option>
-      <option value="gold">Gold</option>
-      <option value="pro">Pro</option>
-      <option value="diamond">Diamond</option>
-    </select>
-  </div>
-)}
+                </div>
+              )}
 
-  </div>
-)}
-
-{activeTab === 2 && userType !== "agent" && (
-                  <div className="grid grid-cols-2 gap-4">
+              {activeTab === 2 && userType !== "agent" && (
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Chat Price (Per Min)</label>
                     <input type="number" className="w-full bg-muted/50 border border-border rounded-lg p-2 text-sm outline-none" 
