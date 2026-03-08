@@ -1,23 +1,23 @@
 import { Mic, CheckCircle, XCircle, Save, X } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import StatusBadge from "@/components/shared/StatusBadge";
-import { users } from "@/data/mockData";
 import { useState, useEffect } from "react";
 
-interface User {
-  id: string;
-  name: string;
+interface Astrologer {
+  id: number;
+  astrologer_name: string;
+  displayname: string;
   phone: string;
-  avatar: string;
+  img_url: string;
   status: string;
-  type: string;
+  gender: string;
+  intro_url?: string;
 }
 
 const AudioVerification = () => {
-  const independentUsers = users.filter(u => u.type === "independent");
-
-  const [statuses, setStatuses] = useState<Record<string, string>>({});
-  const [popupUser, setPopupUser] = useState<User | null>(null);
+  const [pendingUsers, setPendingUsers] = useState<Astrologer[]>([]);
+  const [statuses, setStatuses] = useState<Record<number, string>>({});
+  const [popupUser, setPopupUser] = useState<Astrologer | null>(null);
   const [activeTab, setActiveTab] = useState(1);
   const [formData, setFormData] = useState({
     displayname: "",
@@ -29,31 +29,29 @@ const AudioVerification = () => {
     call_commission: "0",
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [existingAstros, setExistingAstros] = useState<any[]>([]);
 
-  // Fetch existing astrologers from server
   useEffect(() => {
-    fetchExistingAstros();
+    fetchPendingAstros();
   }, []);
 
-  const fetchExistingAstros = async () => {
+  const fetchPendingAstros = async () => {
     try {
       const res = await fetch("https://astroapi.inditechit.com/api/get_astrologer");
       const json = await res.json();
       if (json.status === 200) {
-        setExistingAstros(json.data);
+        const pending = json.data.filter((astro: Astrologer) => astro.status === "pending");
+        setPendingUsers(pending);
       }
     } catch (err) {
-      console.error("Failed to fetch existing astrologers", err);
+      console.error("Failed to fetch astrologers", err);
     }
   };
 
-  // Open popup form
-  const openForm = (user: User) => {
+  const openForm = (user: Astrologer) => {
     setPopupUser(user);
     setFormData({
-      displayname: user.name,
-      phone: user.phone,
+      displayname: user.displayname || user.astrologer_name || "",
+      phone: user.phone || "",
       status: "active",
       chat_price_m: "0",
       call_price_m: "0",
@@ -63,18 +61,39 @@ const AudioVerification = () => {
     setActiveTab(1);
   };
 
-  // Handle delete
-  const handleDelete = (userId: string) => {
-    setStatuses(prev => ({ ...prev, [userId]: "deleted" }));
-    setPopupUser(null);
+  // NEW: Handle Reject (Hits API to update status)
+  const handleReject = async (userId: number) => {
+    try {
+      // Adjust this endpoint if your update URL is different
+      const res = await fetch("https://astroapi.inditechit.com/api/update_astrologer", {
+        method: "POST", // or PUT depending on your backend setup
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: userId,
+          status: "rejected"
+        }),
+      });
+      const result = await res.json();
+
+      if (res.ok && (result.status === 200 || result.status === 201)) {
+        setStatuses(prev => ({ ...prev, [userId]: "rejected" }));
+        fetchPendingAstros(); // Refresh the list
+      } else {
+        alert(result.message || "Failed to reject user");
+      }
+    } catch (err) {
+      console.error("Error rejecting user", err);
+      alert("Error rejecting user");
+    }
   };
 
-  // Handle save / accept
   const handleSave = async () => {
     if (!popupUser) return;
     setIsSaving(true);
 
     const payload = {
+      // Pass the ID so the backend knows to UPDATE, not just create blindly
+      id: popupUser.id, 
       displayname: formData.displayname,
       astrologer_name: formData.displayname,
       phone: formData.phone,
@@ -92,6 +111,8 @@ const AudioVerification = () => {
     };
 
     try {
+      // NOTE: You might want to point this to update_astrologer instead of create_astrologer 
+      // since the astrologer is already in the database as "pending"
       const res = await fetch("https://astroapi.inditechit.com/api/create_astrologer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -102,7 +123,7 @@ const AudioVerification = () => {
       if (res.ok && (result.status === 200 || result.status === 201)) {
         setStatuses(prev => ({ ...prev, [popupUser.id]: "accepted" }));
         setPopupUser(null);
-        fetchExistingAstros(); // Refresh existing astrologers
+        fetchPendingAstros(); 
       } else {
         alert(result.message || "Failed to add user");
       }
@@ -113,12 +134,9 @@ const AudioVerification = () => {
     }
   };
 
-  // Get current status (local or server)
-  const getUserStatus = (user: User) => {
-    if (statuses[user.id]) return statuses[user.id]; // local accept/delete
-    const exists = existingAstros.find(a => a.phone === user.phone); // match by phone
-    if (exists) return "accepted";
-    return user.status; // default
+  const getUserStatus = (user: Astrologer) => {
+    if (statuses[user.id]) return statuses[user.id]; 
+    return user.status; 
   };
 
   return (
@@ -130,17 +148,29 @@ const AudioVerification = () => {
         </div>
 
         <div className="grid gap-4">
-          {independentUsers.map(u => {
+          {pendingUsers.length === 0 && (
+            <p className="text-muted-foreground text-sm">No pending verifications found.</p>
+          )}
+          
+          {pendingUsers.map(u => {
             const currentStatus = getUserStatus(u);
+            if (currentStatus === "accepted" || currentStatus === "rejected") {
+               return null;
+            }
+
             return (
               <div key={u.id} className="glass-card-hover p-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-primary/15 flex items-center justify-center text-primary font-bold">
-                      {u.avatar}
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/15 flex items-center justify-center text-primary font-bold">
+                      {u.img_url ? (
+                        <img src={u.img_url} alt={u.astrologer_name} className="w-full h-full object-cover" />
+                      ) : (
+                        u.astrologer_name?.charAt(0) || "U"
+                      )}
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">{u.name}</p>
+                      <p className="font-medium text-foreground">{u.displayname || u.astrologer_name}</p>
                       <p className="text-xs text-muted-foreground">{u.phone}</p>
                       <div className="mt-1">
                         <StatusBadge status={currentStatus as any} />
@@ -152,29 +182,28 @@ const AudioVerification = () => {
                     <div className="glass-card p-2 flex items-center gap-2">
                       <Mic className="w-4 h-4 text-primary" />
                       <audio controls className="h-8 w-48" style={{ filter: "invert(1) hue-rotate(180deg)" }}>
-                        <source src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" type="audio/mpeg" />
+                        {/* FIXED AUDIO URL LOGIC */}
+                        <source 
+                          src={u.intro_url ? `https://astroapi.inditechit.com${u.intro_url}` : "https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3"} 
+                          type="audio/mpeg" 
+                        />
                       </audio>
                     </div>
 
-                    {currentStatus !== "accepted" && currentStatus !== "deleted" && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openForm(u)}
-                          className="p-2 rounded-lg bg-success/10 text-success hover:bg-success/20"
-                        >
-                          <CheckCircle className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(u.id)}
-                          className="p-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20"
-                        >
-                          <XCircle className="w-5 h-5" />
-                        </button>
-                      </div>
-                    )}
-
-                    {currentStatus === "accepted" && <span className="text-success font-bold">Accepted</span>}
-                    {currentStatus === "deleted" && <span className="text-destructive font-bold">Deleted</span>}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openForm(u)}
+                        className="p-2 rounded-lg bg-success/10 text-success hover:bg-success/20"
+                      >
+                        <CheckCircle className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleReject(u.id)}
+                        className="p-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20"
+                      >
+                        <XCircle className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -183,12 +212,12 @@ const AudioVerification = () => {
         </div>
       </div>
 
-      {/* Popup Form */}
+      {/* Popup Form (Remains Unchanged) */}
       {popupUser && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-card border border-border w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
             <div className="p-6 border-b border-border flex justify-between items-center bg-muted/20">
-              <h2 className="text-xl font-bold">Approve {popupUser.name}</h2>
+              <h2 className="text-xl font-bold">Approve {popupUser.astrologer_name}</h2>
               <button onClick={() => setPopupUser(null)} className="p-2 hover:bg-muted rounded-full"><X size={20} /></button>
             </div>
 
