@@ -15,6 +15,8 @@ import AudioVerification from "./pages/AudioVerification";
 import Recharges from "./pages/Recharges";
 import CommissionEngine from "./pages/CommissionEngine";
 import SettingsPage from "./pages/SettingsPage";
+import CoinManagement from "./pages/CoinManagement";
+import Leaderboard from "./pages/Leaderboard";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 
@@ -44,7 +46,9 @@ const App = () => (
             <Route path="/audio-verification" element={<AudioVerification />} />
             <Route path="/recharges" element={<Recharges />} />
             <Route path="/commission" element={<CommissionEngine />} />
+            <Route path="/coins" element={<CoinManagement />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/support" element={<SupportTickets />} />
           </Route>
 

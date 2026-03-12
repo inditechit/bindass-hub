@@ -12,6 +12,7 @@ import {
   Crown,
   LogOut,
   HelpCircle,
+  IndianRupee,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,8 @@ const navItems = [
   { label: "Audio Verification", icon: Mic, path: "/audio-verification" },
   { label: "Recharge Tracking", icon: CreditCard, path: "/recharges" },
   { label: "Support Tickets", icon: HelpCircle, path: "/support" },
+  { label: "Leaderboard", icon: TrendingUp, path: "/leaderboard" },
+  { label: "Coin Management", icon: IndianRupee, path: "/coins" },
   { label: "Settings", icon: Settings, path: "/settings" },
 ];
 
@@ -57,7 +60,7 @@ const AppSidebar = () => {
   // Filter nav items based on role
   const filteredNavItems = useMemo(() => {
     if (userType === "agent") {
-      const agentAllowedPaths = ["/",  "/users"];
+      const agentAllowedPaths = ["/",  "/users"]; // agents shouldn't see leaderboard or coins
       return navItems.filter((item) => agentAllowedPaths.includes(item.path));
     }
     return navItems; // Admins and others see everything
