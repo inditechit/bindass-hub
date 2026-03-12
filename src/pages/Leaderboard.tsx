@@ -18,10 +18,18 @@ interface Client {
   date: string;
 }
 
+interface DailyActivity {
+  date: string;
+  minutes: number;
+}
+
 const Leaderboard = () => {
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  const [selectedUser, setSelectedUser] = useState<Performer | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
   // sample performers
   const performers: Performer[] = [
@@ -39,7 +47,7 @@ const Leaderboard = () => {
     { id: 4, name: "Neha", recharge: 3500, used: 2900, date: "2026-07-20" }
   ];
 
-  // date range filter
+  // filter performers
   const filteredPerformers = useMemo(() => {
     if (!startDate || !endDate) return performers;
 
@@ -47,8 +55,10 @@ const Leaderboard = () => {
       const d = new Date(p.date);
       return d >= new Date(startDate) && d <= new Date(endDate);
     });
+
   }, [startDate, endDate]);
 
+  // filter clients
   const filteredClients = useMemo(() => {
     if (!startDate || !endDate) return clients;
 
@@ -56,17 +66,42 @@ const Leaderboard = () => {
       const d = new Date(c.date);
       return d >= new Date(startDate) && d <= new Date(endDate);
     });
+
   }, [startDate, endDate]);
 
-  // sorting
-  const topPerformers = [...filteredPerformers].sort((a, b) => b.loginTime - a.loginTime);
-  const topClients = [...filteredClients].sort((a, b) => b.recharge - a.recharge);
+  const topPerformers = [...filteredPerformers].sort(
+    (a, b) => b.loginTime - a.loginTime
+  );
+
+  const topClients = [...filteredClients].sort(
+    (a, b) => b.recharge - a.recharge
+  );
 
   const formatLoginTime = (minutes: number) => {
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
     return `${h}h ${m}m`;
   };
+
+  // generate last 20 days data
+  const generateActivity = (): DailyActivity[] => {
+    const data: DailyActivity[] = [];
+
+    for (let i = 0; i < 20; i++) {
+
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+
+      data.push({
+        date: date.toISOString().split("T")[0],
+        minutes: Math.floor(Math.random() * 300)
+      });
+    }
+
+    return data;
+  };
+
+  const activity = selectedUser ? generateActivity() : [];
 
   return (
     <DashboardLayout>
@@ -77,40 +112,38 @@ const Leaderboard = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
           <div>
-            <h1 className="text-2xl font-display font-bold">
+            <h1 className="text-2xl font-bold">
               Leaderboard
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Top performers and top spending clients
+              Top performers and top clients
             </p>
           </div>
 
-          {/* Date Range Filter */}
+          {/* Date Filter */}
           <div className="flex items-center gap-2">
 
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-muted"
+              className="border rounded-lg px-3 py-2 text-sm"
             />
 
-            <span className="text-muted-foreground text-sm">
-              to
-            </span>
+            <span>to</span>
 
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-muted"
+              className="border rounded-lg px-3 py-2 text-sm"
             />
 
           </div>
 
         </div>
 
-        {/* Leaderboard sections */}
+        {/* Tables */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           {/* Performers */}
@@ -123,53 +156,63 @@ const Leaderboard = () => {
               </h2>
             </div>
 
-            <div className="overflow-x-auto">
+            <table className="w-full text-sm">
 
-              <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="py-3 px-2">Rank</th>
+                  <th className="py-3 px-2">User</th>
+                  <th className="py-3 px-2">Login Time</th>
+                  {/* <th className="py-3 px-2">Rating</th> */}
+                  <th className="py-3 px-2">Action</th>
+                </tr>
+              </thead>
 
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground text-left">
-                    <th className="py-3 px-2">Rank</th>
-                    <th className="py-3 px-2">User</th>
-                    <th className="py-3 px-2">Login Time</th>
-                    <th className="py-3 px-2">Rating</th>
+              <tbody>
+
+                {topPerformers.map((p, index) => (
+
+                  <tr key={p.id} className="border-b">
+
+                    <td className="py-3 px-2 font-bold">
+                      #{index + 1}
+                    </td>
+
+                    <td className="py-3 px-2">
+                      {p.name}
+                    </td>
+
+                    <td className="py-3 px-2 flex items-center gap-1">
+                      <Clock size={14} />
+                      {formatLoginTime(p.loginTime)}
+                    </td>
+
+                    <td className="py-3 px-2 flex items-center gap-1 text-yellow-500">
+                      <Star size={14} />
+                      {p.rating}
+                    </td>
+
+                    <td className="py-3 px-2">
+
+                      <button
+                        className="text-xs bg-primary text-white px-3 py-1 rounded"
+                        onClick={() => {
+                          setSelectedUser(p);
+                          setShowModal(true);
+                        }}
+                      >
+                        View Details
+                      </button>
+
+                    </td>
+
                   </tr>
-                </thead>
 
-                <tbody>
-                  {topPerformers.map((p, index) => (
+                ))}
 
-                    <tr
-                      key={p.id}
-                      className="border-b border-border/50 hover:bg-muted/30 transition-colors"
-                    >
+              </tbody>
 
-                      <td className="py-3 px-2 font-bold">
-                        #{index + 1}
-                      </td>
-
-                      <td className="py-3 px-2">
-                        {p.name}
-                      </td>
-
-                      <td className="py-3 px-2 flex items-center gap-1">
-                        <Clock size={14} />
-                        {formatLoginTime(p.loginTime)}
-                      </td>
-
-                      <td className="py-3 px-2 flex items-center gap-1 text-yellow-500">
-                        <Star size={14} />
-                        {p.rating}
-                      </td>
-
-                    </tr>
-
-                  ))}
-                </tbody>
-
-              </table>
-
-            </div>
+            </table>
 
           </div>
 
@@ -183,57 +226,107 @@ const Leaderboard = () => {
               </h2>
             </div>
 
-            <div className="overflow-x-auto">
+            <table className="w-full text-sm">
 
-              <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="py-3 px-2">Rank</th>
+                  <th className="py-3 px-2">Client</th>
+                  <th className="py-3 px-2">Recharge</th>
+                  <th className="py-3 px-2">Used</th>
+                </tr>
+              </thead>
 
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground text-left">
-                    <th className="py-3 px-2">Rank</th>
-                    <th className="py-3 px-2">Client</th>
-                    <th className="py-3 px-2">Recharge</th>
-                    <th className="py-3 px-2">Used</th>
+              <tbody>
+
+                {topClients.map((c, index) => (
+
+                  <tr key={c.id} className="border-b">
+
+                    <td className="py-3 px-2 font-bold">
+                      #{index + 1}
+                    </td>
+
+                    <td className="py-3 px-2">
+                      {c.name}
+                    </td>
+
+                    <td className="py-3 px-2 text-green-500 font-semibold">
+                      ₹{c.recharge}
+                    </td>
+
+                    <td className="py-3 px-2 text-primary font-semibold">
+                      ₹{c.used}
+                    </td>
+
                   </tr>
-                </thead>
 
-                <tbody>
-                  {topClients.map((c, index) => (
+                ))}
 
-                    <tr
-                      key={c.id}
-                      className="border-b border-border/50 hover:bg-muted/30 transition-colors"
-                    >
+              </tbody>
 
-                      <td className="py-3 px-2 font-bold">
-                        #{index + 1}
-                      </td>
-
-                      <td className="py-3 px-2">
-                        {c.name}
-                      </td>
-
-                      <td className="py-3 px-2 text-green-500 font-semibold">
-                        ₹{c.recharge}
-                      </td>
-
-                      <td className="py-3 px-2 text-primary font-semibold">
-                        ₹{c.used}
-                      </td>
-
-                    </tr>
-
-                  ))}
-                </tbody>
-
-              </table>
-
-            </div>
+            </table>
 
           </div>
 
         </div>
 
       </div>
+
+      {/* Modal */}
+      {showModal && selectedUser && (
+
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+
+    <div className="bg-white text-black rounded-xl p-6 w-[500px] max-h-[500px] overflow-y-auto shadow-lg">
+
+      <h2 className="text-lg font-bold mb-4 text-black">
+        {selectedUser.name} - Last 20 Days Activity
+      </h2>
+
+      <table className="w-full text-sm">
+
+        <thead>
+          <tr className="border-b border-gray-300 text-gray-700">
+            <th className="py-2 text-left">Date</th>
+            <th className="py-2 text-left">Login Time</th>
+          </tr>
+        </thead>
+
+        <tbody>
+
+          {activity.map((a, i) => (
+
+            <tr key={i} className="border-b border-gray-200">
+
+              <td className="py-2 text-gray-800">
+                {a.date}
+              </td>
+
+              <td className="py-2 text-gray-800">
+                {formatLoginTime(a.minutes)}
+              </td>
+
+            </tr>
+
+          ))}
+
+        </tbody>
+
+      </table>
+
+      <button
+        onClick={() => setShowModal(false)}
+        className="mt-4 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+      >
+        Close
+      </button>
+
+    </div>
+
+  </div>
+
+)}
 
     </DashboardLayout>
   );
