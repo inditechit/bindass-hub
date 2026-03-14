@@ -1,63 +1,95 @@
 import { useState, useEffect } from "react";
-import { IndianRupee, User } from "lucide-react";
+import { IndianRupee, User, Trash2 } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
 interface CoinPackage {
   id: number;
   rupees: number;
   coins: number;
-  user?: string; // email or identifier, undefined means available for everyone
+  user_id?: number;
+  user_email?: string;
+}
+
+interface UserListItem {
+  id: number;
+  email: string;
 }
 
 const CoinManagement = () => {
   const [packages, setPackages] = useState<CoinPackage[]>([]);
   const [form, setForm] = useState({ rupees: "", coins: "", user: "" });
   const [isAdding, setIsAdding] = useState(false);
-  const [allUsers, setAllUsers] = useState<string[]>([]);
+  const [allUsers, setAllUsers] = useState<UserListItem[]>([]);
+
+  const API_BASE = "https://astroapi.inditechit.com/api";
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((p) => ({ ...p, [name]: value }));
   };
 
-  useEffect(() => {
-    // fetch user list once for selector
-    const load = async () => {
-      try {
-        const res = await fetch("https://astroapi.inditechit.com/api/get_users");
-        const json = await res.json();
-        if (json.status === 200 && Array.isArray(json.data)) {
-          const emails = json.data
-            .filter((u: any) => u.type !== "agent")
-            .map((u: any) => u.email)
-            .filter(Boolean);
-          setAllUsers(emails);
-        }
-      } catch (e) {
-        console.error("Failed to load user list", e);
+  const loadData = async () => {
+    try {
+      const userRes = await fetch(`${API_BASE}/get_users`);
+      const userJson = await userRes.json();
+      if (userJson.status === 200) {
+        setAllUsers(userJson.data.map((u: any) => ({ id: u.id, email: u.email })));
       }
-    };
-    load();
+
+      const pkgRes = await fetch(`${API_BASE}/get_coin_packages`);
+      const pkgJson = await pkgRes.json();
+      if (pkgJson.status === 200) {
+        setPackages(pkgJson.data);
+      }
+    } catch (e) {
+      console.error("Failed to load data", e);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const rupees = parseFloat(form.rupees);
-    const coins = parseFloat(form.coins);
-    if (isNaN(rupees) || isNaN(coins)) {
-      alert("Please enter valid numeric values for rupees and coins.");
-      return;
-    }
     setIsAdding(true);
-    const newPkg: CoinPackage = {
-      id: Date.now(),
-      rupees,
-      coins,
-      user: form.user.trim() || undefined,
+
+    const selectedUser = allUsers.find((u) => u.email === form.user);
+    const payload = {
+      rupees: parseFloat(form.rupees),
+      coins: parseInt(form.coins),
+      user_id: selectedUser ? selectedUser.id : null,
     };
-    setPackages((p) => [...p, newPkg]);
-    setForm({ rupees: "", coins: "", user: "" });
-    setIsAdding(false);
+
+    try {
+      const res = await fetch(`${API_BASE}/create_coin_package`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        await loadData();
+        setForm({ rupees: "", coins: "", user: "" });
+      }
+    } catch (err) {
+      alert("Error adding package");
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this package?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/delete_coin_package/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setPackages((p) => p.filter((pkg) => pkg.id !== id));
+      }
+    } catch (err) {
+      alert("Delete failed");
+    }
   };
 
   return (
@@ -66,19 +98,16 @@ const CoinManagement = () => {
         <div>
           <h1 className="text-2xl font-display font-bold">Coin Management</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Define how many coins should be granted for a given amount in rupees. You
-            can target everyone or a specific user by email.
+            Define coins granted per Rupee amount. Targets can be global or specific.
           </p>
         </div>
 
-        {/* add form */}
+        {/* YOUR ORIGINAL GLASS-CARD FORM UI */}
         <div className="glass-card p-6 max-w-lg">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">
-                  Amount (₹)
-                </label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Amount (₹)</label>
                 <input
                   type="number"
                   name="rupees"
@@ -87,13 +116,10 @@ const CoinManagement = () => {
                   onChange={handleChange}
                   className="w-full p-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                   placeholder="e.g. 100"
-                  min="0"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">
-                  Coins
-                </label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Coins</label>
                 <input
                   type="number"
                   name="coins"
@@ -102,15 +128,12 @@ const CoinManagement = () => {
                   onChange={handleChange}
                   className="w-full p-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                   placeholder="e.g. 50"
-                  min="0"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase">
-                Specific User (optional)
-              </label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Specific User (optional)</label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                 <input
@@ -120,17 +143,12 @@ const CoinManagement = () => {
                   value={form.user}
                   onChange={handleChange}
                   className="w-full pl-10 p-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  placeholder="start typing to search"
+                  placeholder="Search user..."
                 />
                 <datalist id="user-options">
-                  {allUsers.map((email) => (
-                    <option key={email} value={email} />
-                  ))}
+                  {allUsers.map((u) => <option key={u.id} value={u.email} />)}
                 </datalist>
               </div>
-              <p className="text-[10px] text-muted-foreground">
-                Leave empty for everyone.
-              </p>
             </div>
 
             <button
@@ -143,34 +161,54 @@ const CoinManagement = () => {
           </form>
         </div>
 
-        {/* card grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {packages.map((pkg) => (
-            <div
-              key={pkg.id}
-              className="glass-card p-4 flex flex-col justify-between space-y-2"
-            >
-              <div>
-                <p className="text-xs text-muted-foreground uppercase">Amount</p>
-                <p className="text-xl font-bold">₹{pkg.rupees}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase">Coins</p>
-                <p className="text-xl font-bold">{pkg.coins}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase">Target</p>
-                <p className="text-sm font-medium">
-                  {pkg.user ? pkg.user : "All users"}
-                </p>
-              </div>
-            </div>
-          ))}
-          {packages.length === 0 && (
-            <div className="col-span-full text-center text-muted-foreground">
-              No packages defined yet.
-            </div>
-          )}
+        {/* TABLE VIEW FOR SHOWING DATA */}
+        <div className="glass-card overflow-hidden border border-border rounded-xl">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-muted/50 text-muted-foreground font-semibold border-b">
+              <tr>
+                <th className="p-4 uppercase tracking-wider">Amount</th>
+                <th className="p-4 uppercase tracking-wider">Coins</th>
+                <th className="p-4 uppercase tracking-wider">Target User</th>
+                <th className="p-4 uppercase tracking-wider text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {packages.slice() // Create a shallow copy to avoid mutating state directly
+                .sort((a, b) => a.rupees - b.rupees) // Sort ascending: 10, 20, 50...
+                .map((pkg) => (
+                  <tr key={pkg.id} className="hover:bg-muted/10 transition-colors">
+                    <td className="p-4 font-medium text-foreground">₹{pkg.rupees}</td>
+                    <td className="p-4 font-bold text-primary">{pkg.coins}</td>
+                    <td className="p-4 text-muted-foreground">
+                      {pkg.user_email ? (
+                        <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs">
+                          {pkg.user_email}
+                        </span>
+                      ) : (
+                        <span className="text-green-600 bg-green-50 px-2 py-1 rounded text-xs">
+                          All Users
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4 text-right">
+                      <button
+                        onClick={() => handleDelete(pkg.id)}
+                        className="text-destructive hover:bg-destructive/10 p-2 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              {packages.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="p-8 text-center text-muted-foreground">
+                    No packages created yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </DashboardLayout>
