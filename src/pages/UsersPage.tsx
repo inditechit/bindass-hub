@@ -297,11 +297,11 @@ const PerformersPage = () => {
                       {userType === "agent" ? (
                         <span
                           className={`px-3 py-1 text-xs font-bold rounded-lg
-                          ${p.status === "active"
+                          ${p.paytm === "active"
                             ? "bg-green-500/10 text-green-500"
                             : "bg-red-500/10 text-red-500"}`}
                         >
-                          {p.status === "active" ? "Active" : "Block"}
+                          {p.paytm === "active" ? "Active" : "Block"}
                         </span>
                       ) : (
                         <button

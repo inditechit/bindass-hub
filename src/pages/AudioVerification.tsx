@@ -70,7 +70,7 @@ const AudioVerification = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: userId,
-          status: "rejected"
+          paytm: "rejected"
         }),
       });
       const result = await res.json();
@@ -111,10 +111,8 @@ const AudioVerification = () => {
     };
 
     try {
-      // NOTE: You might want to point this to update_astrologer instead of create_astrologer 
-      // since the astrologer is already in the database as "pending"
-      const res = await fetch("https://astroapi.inditechit.com/api/create_astrologer", {
-        method: "POST",
+      const res = await fetch(`https://astroapi.inditechit.com/api/update_astrologer/${popupUser.id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
